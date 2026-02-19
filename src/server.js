@@ -25,7 +25,8 @@ const FILES = {
   flights: path.join(DATA_DIR, 'flights.json'),
   payments: path.join(DATA_DIR, 'payments.json'),
   bookings: path.join(DATA_DIR, 'bookings.json'),
-  searchHistory: path.join(DATA_DIR, 'searchHistory.json')
+  searchHistory: path.join(DATA_DIR, 'searchHistory.json'),
+  adminConfig: path.join(DATA_DIR, 'adminConfig.json')
 };
 
 const MIME_TYPES = {
@@ -84,6 +85,15 @@ function ensureDataFiles() {
     [FILES.payments]: [],
     [FILES.bookings]: [],
     [FILES.searchHistory]: [],
+    [FILES.adminConfig]: {
+      feeByCabin: {
+        economy: 0,
+        premium_economy: 0,
+        business: 0,
+        first: 0
+      },
+      updatedAt: new Date().toISOString()
+    },
     [FILES.flights]: [
       { id: 'f1', from: 'FRA', to: 'JFK', date: '2026-04-10', airline: 'Lufthansa', flightNumber: 'LH111', cabin: 'Business', pointsRequired: 20000, cashPrice: 580, depTime: '09:20', arrTime: '16:30', duration: '13h', stops: 'Non stop' },
       { id: 'f2', from: 'FRA', to: 'JFK', date: '2026-04-10', airline: 'Lufthansa', flightNumber: 'LH113', cabin: 'Business', pointsRequired: 24000, cashPrice: 610, depTime: '13:10', arrTime: '20:25', duration: '13h 15m', stops: 'Non stop' },
@@ -101,6 +111,8 @@ function ensureDataFiles() {
       fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
     }
   }
+
+  ensureAdminUser();
 }
 
 function readJson(filePath) {
@@ -213,9 +225,21 @@ function requireAuth(req, res) {
   return user;
 }
 
+function requireAdmin(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return null;
+  const role = String(user.role || '').toLowerCase();
+  if (role !== 'admin') {
+    sendJson(res, 403, { error: 'Admin access required' });
+    return null;
+  }
+  return user;
+}
+
 function normalizeUser(user) {
   return {
     ...user,
+    role: user.role === 'admin' ? 'admin' : 'user',
     homeAirport: user.homeAirport || '',
     firstName: user.firstName || '',
     middleName: user.middleName || '',
@@ -255,7 +279,194 @@ function publicUser(rawUser) {
     language: user.language,
     preferences: user.preferences,
     twoFactorEnabled: user.twoFactorEnabled,
+    role: user.role,
     createdAt: user.createdAt
+  };
+}
+
+function ensureAdminUser() {
+  const users = readJson(FILES.users);
+  const existingAdmin = users.find(u => String(u.role || '').toLowerCase() === 'admin');
+  if (existingAdmin) {
+    return;
+  }
+
+  const adminName = (process.env.ADMIN_NAME || 'MiTravel Admin').trim();
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@mitravel.local').trim().toLowerCase();
+  const adminPassword = String(process.env.ADMIN_PASSWORD || 'Admin#2026!').trim();
+  const [firstName = '', ...rest] = adminName.split(' ');
+  const lastName = rest.join(' ');
+  const { salt, hash } = hashPassword(adminPassword);
+
+  users.push({
+    id: crypto.randomUUID(),
+    name: adminName,
+    email: adminEmail,
+    passwordSalt: salt,
+    passwordHash: hash,
+    role: 'admin',
+    firstName,
+    middleName: '',
+    lastName,
+    homeAirport: '',
+    address: '',
+    passportNumber: '',
+    passportExpiry: '',
+    passportCountry: '',
+    title: '',
+    gender: '',
+    bornOn: '',
+    phone: '',
+    language: 'English',
+    twoFactorEnabled: false,
+    preferences: [],
+    createdAt: new Date().toISOString()
+  });
+  writeJson(FILES.users, users);
+}
+
+function getAdminConfig() {
+  const raw = readJson(FILES.adminConfig);
+  const oldPercent = Number(raw.duffelFeePercent);
+  const source = (raw.feeByCabin && typeof raw.feeByCabin === 'object')
+    ? raw.feeByCabin
+    : {
+      economy: oldPercent,
+      premium_economy: oldPercent,
+      business: oldPercent,
+      first: oldPercent
+    };
+
+  const feeByCabin = {
+    economy: Number.isFinite(Number(source.economy)) ? Math.max(0, Math.min(100, Number(source.economy))) : 0,
+    premium_economy: Number.isFinite(Number(source.premium_economy)) ? Math.max(0, Math.min(100, Number(source.premium_economy))) : 0,
+    business: Number.isFinite(Number(source.business)) ? Math.max(0, Math.min(100, Number(source.business))) : 0,
+    first: Number.isFinite(Number(source.first)) ? Math.max(0, Math.min(100, Number(source.first))) : 0
+  };
+
+  return {
+    feeByCabin,
+    duffelFeePercent: feeByCabin.economy,
+    updatedAt: raw.updatedAt || ''
+  };
+}
+
+function setAdminConfig(next) {
+  const incomingFeeByCabin = next && typeof next.feeByCabin === 'object' ? next.feeByCabin : null;
+  const singlePercent = Number(next?.duffelFeePercent);
+
+  const fallbackPercent = Number.isFinite(singlePercent) ? Math.max(0, Math.min(100, singlePercent)) : 0;
+  const feeByCabin = {
+    economy: Number.isFinite(Number(incomingFeeByCabin?.economy)) ? Math.max(0, Math.min(100, Number(incomingFeeByCabin.economy))) : fallbackPercent,
+    premium_economy: Number.isFinite(Number(incomingFeeByCabin?.premium_economy)) ? Math.max(0, Math.min(100, Number(incomingFeeByCabin.premium_economy))) : fallbackPercent,
+    business: Number.isFinite(Number(incomingFeeByCabin?.business)) ? Math.max(0, Math.min(100, Number(incomingFeeByCabin.business))) : fallbackPercent,
+    first: Number.isFinite(Number(incomingFeeByCabin?.first)) ? Math.max(0, Math.min(100, Number(incomingFeeByCabin.first))) : fallbackPercent
+  };
+
+  const record = {
+    feeByCabin,
+    duffelFeePercent: feeByCabin.economy,
+    updatedAt: new Date().toISOString()
+  };
+  writeJson(FILES.adminConfig, record);
+  return record;
+}
+
+function normalizeCabinKey(cabin) {
+  const raw = String(cabin || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (raw === 'premium' || raw === 'premiumeco' || raw === 'premiumeconomy') return 'premium_economy';
+  if (raw === 'premium_economy') return 'premium_economy';
+  if (raw === 'business') return 'business';
+  if (raw === 'first') return 'first';
+  return 'economy';
+}
+
+function applyDuffelFeeToFlight(flight) {
+  if (!flight || String(flight.source || '').toLowerCase() !== 'duffel') {
+    return flight;
+  }
+  const config = getAdminConfig();
+  const cabinKey = normalizeCabinKey(flight.cabin);
+  const percent = Number(config.feeByCabin?.[cabinKey] || 0);
+  const base = Number(flight.cashPrice || 0);
+  const feeAmount = Number((base * percent / 100).toFixed(2));
+  const total = Number((base + feeAmount).toFixed(2));
+  return {
+    ...flight,
+    feeCabin: cabinKey,
+    baseCashPrice: base,
+    feePercent: percent,
+    feeAmount,
+    cashPrice: total
+  };
+}
+
+function routeKeyFromFlight(flight) {
+  const from = String(flight?.outboundFrom || flight?.from || '').trim().toUpperCase();
+  const to = String(flight?.outboundTo || flight?.to || '').trim().toUpperCase();
+  if (!from || !to) return '';
+  return `${from}-${to}`;
+}
+
+function buildAdminStats() {
+  const users = readJson(FILES.users);
+  const history = readJson(FILES.searchHistory);
+  const bookings = readJson(FILES.bookings);
+  const rewards = readJson(FILES.rewards);
+  const config = getAdminConfig();
+
+  const usersCount = users.length;
+  const usersByRole = users.reduce((acc, user) => {
+    const role = String(user.role || 'user').toLowerCase() === 'admin' ? 'admin' : 'user';
+    acc[role] = Number(acc[role] || 0) + 1;
+    return acc;
+  }, { admin: 0, user: 0 });
+
+  const searchSessionsCount = history.length;
+  const searchCount = history.reduce((acc, session) => {
+    const messages = Array.isArray(session.messages) ? session.messages : [];
+    const promptCount = messages.filter(m => String(m.role || '').toLowerCase() === 'user').length;
+    return acc + promptCount;
+  }, 0);
+
+  const routeCounts = new Map();
+  for (const session of history) {
+    const first = Array.isArray(session.latestResults) ? session.latestResults[0] : null;
+    const key = routeKeyFromFlight(first);
+    if (!key) continue;
+    routeCounts.set(key, Number(routeCounts.get(key) || 0) + 1);
+  }
+  const topRoutes = [...routeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([route, count]) => ({ route, count }));
+
+  const ffpProgramCounts = new Map();
+  for (const reward of rewards) {
+    const program = String(reward.programName || 'Unknown').trim() || 'Unknown';
+    ffpProgramCounts.set(program, Number(ffpProgramCounts.get(program) || 0) + 1);
+  }
+  const frequentFlyerPrograms = [...ffpProgramCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([program, count]) => ({ program, count }));
+
+  const bookingsCount = bookings.length;
+  const bookingAmount = bookings.reduce((acc, booking) => acc + Number(booking.totalAmount || 0), 0);
+  const amountPaid = bookingAmount;
+  const totalFeeAmount = bookings.reduce((acc, booking) => acc + Number(booking.flight?.feeAmount || 0), 0);
+
+  return {
+    usersCount,
+    usersByRole,
+    searchCount,
+    searchSessionsCount,
+    bookingsCount,
+    bookingAmount: Number(bookingAmount.toFixed(2)),
+    amountPaid: Number(amountPaid.toFixed(2)),
+    totalFeeAmount: Number(totalFeeAmount.toFixed(2)),
+    topRoutes,
+    frequentFlyerPrograms,
+    pricing: config
   };
 }
 
@@ -852,6 +1063,29 @@ function parseMonthDayToIso(dayStr, monthStr) {
   return resolveTravelDate(month, day);
 }
 
+function extractCabinFromText(text) {
+  const parseText = String(text || '').toLowerCase();
+  const tokens = parseText.split(/\s+/).filter(Boolean);
+
+  const hasWord = keyword => tokens.some(token => fuzzyKeywordMatch(token, keyword));
+  if (parseText.includes('premium economy') || parseText.includes('premium eco') || parseText.includes('premium_economy')) {
+    return 'premium_economy';
+  }
+  if (parseText.includes('business class') || parseText.includes('business')) {
+    return 'business';
+  }
+  if (parseText.includes('first class') || hasWord('first')) {
+    return 'first';
+  }
+  if (hasWord('business') || hasWord('buisness') || hasWord('bussiness')) {
+    return 'business';
+  }
+  if (hasWord('economy') || hasWord('eco')) {
+    return 'economy';
+  }
+  return '';
+}
+
 function extractAiSearchParams(message) {
   const raw = String(message || '').trim();
   const lower = raw
@@ -866,6 +1100,7 @@ function extractAiSearchParams(message) {
     .replace(/\bfom\b/g, 'from')
     .replace(/\btto\b/g, 'to')
     .replace(/\btoo\b/g, 'to');
+  const cabin = extractCabinFromText(parseText);
 
   let fromText = '';
   let toText = '';
@@ -1018,6 +1253,7 @@ function extractAiSearchParams(message) {
     to: normalizeAirportFromText(toText),
     date,
     returnDate,
+    cabin,
     raw
   };
 }
@@ -1335,7 +1571,10 @@ async function searchFlightsWithDuffel(payload) {
     }
 
     const offers = Array.isArray(payloadJson.data?.offers) ? payloadJson.data.offers : [];
-    const results = offers.slice(0, 8).map(offer => normalizeDuffelOffer(offer, { from, to, date, cabin }));
+    const results = offers
+      .slice(0, 8)
+      .map(offer => normalizeDuffelOffer(offer, { from, to, date, cabin }))
+      .map(applyDuffelFeeToFlight);
 
     const reply = results.length
       ? `I found ${results.length} ${returnDate ? 'round-trip ' : ''}option(s) from Duffel.`
@@ -1505,7 +1744,7 @@ function decideSearchProvider(message) {
 }
 
 function serveStatic(req, res, pathname) {
-  const filePath = pathname === '/'
+  const filePath = pathname === '/' || pathname === '/admin'
     ? path.join(PUBLIC_DIR, 'index.html')
     : path.join(PUBLIC_DIR, pathname);
 
@@ -1516,6 +1755,12 @@ function serveStatic(req, res, pathname) {
   }
 
   if (!fs.existsSync(normalized) || !fs.statSync(normalized).isFile()) {
+    if (!path.extname(pathname)) {
+      const indexPath = path.join(PUBLIC_DIR, 'index.html');
+      res.writeHead(200, { 'Content-Type': MIME_TYPES['.html'] });
+      fs.createReadStream(indexPath).pipe(res);
+      return;
+    }
     sendText(res, 404, 'Not found');
     return;
   }
@@ -1554,6 +1799,7 @@ async function handleApi(req, res, pathname) {
       email,
       passwordSalt: salt,
       passwordHash: hash,
+      role: 'user',
       firstName,
       middleName: '',
       lastName,
@@ -1984,6 +2230,61 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/api/admin/stats') {
+    const user = requireAdmin(req, res);
+    if (!user) return;
+
+    sendJson(res, 200, { stats: buildAdminStats() });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/admin/pricing-config') {
+    const user = requireAdmin(req, res);
+    if (!user) return;
+
+    sendJson(res, 200, { pricing: getAdminConfig() });
+    return;
+  }
+
+  if (req.method === 'PUT' && pathname === '/api/admin/pricing-config') {
+    const user = requireAdmin(req, res);
+    if (!user) return;
+
+    const body = await parseBody(req);
+    const hasNewPayload = body.feeByCabin && typeof body.feeByCabin === 'object';
+    const hasLegacyPayload = body.duffelFeePercent !== undefined;
+    if (!hasNewPayload && !hasLegacyPayload) {
+      sendJson(res, 400, { error: 'feeByCabin is required' });
+      return;
+    }
+
+    if (hasNewPayload) {
+      const cabins = ['economy', 'premium_economy', 'business', 'first'];
+      for (const cabin of cabins) {
+        const value = Number(body.feeByCabin[cabin]);
+        if (!Number.isFinite(value)) {
+          sendJson(res, 400, { error: `feeByCabin.${cabin} must be a number` });
+          return;
+        }
+      }
+    }
+
+    if (hasLegacyPayload) {
+      const percent = Number(body.duffelFeePercent);
+      if (!Number.isFinite(percent)) {
+        sendJson(res, 400, { error: 'duffelFeePercent must be a number' });
+        return;
+      }
+    }
+
+    const pricing = setAdminConfig({
+      ...(hasNewPayload ? { feeByCabin: body.feeByCabin } : {}),
+      ...(hasLegacyPayload ? { duffelFeePercent: Number(body.duffelFeePercent) } : {})
+    });
+    sendJson(res, 200, { pricing });
+    return;
+  }
+
   if (req.method === 'POST' && pathname === '/api/search-history') {
     const user = requireAuth(req, res);
     if (!user) return;
@@ -2194,15 +2495,16 @@ async function handleApi(req, res, pathname) {
     const body = await parseBody(req);
     const agent = decideSearchProvider(body.message || '');
     const parsed = extractAiSearchParams(body.message || '');
+    const context = body.context && typeof body.context === 'object' ? body.context : {};
     const fallbackFrom = user.homeAirport || '';
     const profileLoyaltyAccounts = buildDuffelLoyaltyAccountsForUser(user.id);
     const defaultDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const finalPayload = {
-      from: parsed.from || fallbackFrom,
-      to: parsed.to,
-      date: parsed.date || defaultDate,
-      returnDate: parsed.returnDate || '',
-      cabin: '',
+      from: parsed.from || String(context.from || '').trim().toUpperCase() || fallbackFrom,
+      to: parsed.to || String(context.to || '').trim().toUpperCase(),
+      date: parsed.date || String(context.date || '').trim() || defaultDate,
+      returnDate: parsed.returnDate || String(context.returnDate || '').trim() || '',
+      cabin: parsed.cabin || String(context.cabin || '').trim(),
       preferences: Array.isArray(body.preferences) ? body.preferences : (Array.isArray(user.preferences) ? user.preferences : []),
       loyaltyAccounts: profileLoyaltyAccounts
     };

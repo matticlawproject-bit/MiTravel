@@ -49,5 +49,29 @@
       "First"
     ],
     "createdAt": "2026-02-19T18:25:47.265Z"
+  },
+  {
+    "id": "de1549d3-ace9-4607-8678-c7f3294813a1",
+    "name": "MiTravel Admin",
+    "email": "admin@mitravel.local",
+    "passwordSalt": "72d32974765ec20b4dafe8fc38e30c7f",
+    "passwordHash": "176b979f518827afe8a2afe5199e174465d20c28b27dffc11a6ff69fd13844c114de34228f4846f8eba79cf0931c012c2722c91628b9e08f6ae28130e11a02f5",
+    "role": "admin",
+    "firstName": "MiTravel",
+    "middleName": "",
+    "lastName": "Admin",
+    "homeAirport": "",
+    "address": "",
+    "passportNumber": "",
+    "passportExpiry": "",
+    "passportCountry": "",
+    "title": "",
+    "gender": "",
+    "bornOn": "",
+    "phone": "",
+    "language": "English",
+    "twoFactorEnabled": false,
+    "preferences": [],
+    "createdAt": "2026-02-19T18:41:57.042Z"
   }
 ]

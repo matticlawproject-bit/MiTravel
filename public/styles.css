@@ -801,6 +801,82 @@ input {
   width: 100%;
 }
 
+.admin-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-kpi {
+  border-radius: 14px;
+  border: 1px solid var(--soft-line);
+  background: rgba(10, 18, 36, 0.6);
+  padding: 12px;
+}
+
+.admin-kpi p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-kpi strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 26px;
+}
+
+.admin-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-chart {
+  border: 1px solid var(--soft-line);
+  border-radius: 16px;
+  background: rgba(12, 20, 40, 0.48);
+  padding: 12px;
+}
+
+.admin-chart h3 {
+  margin: 0 0 10px;
+}
+
+.admin-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-bar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.admin-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.admin-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(120deg, #5c72ee, #34d7d0);
+}
+
 #routePersonalization .stack-row,
 #routePersonalization .payment-section {
   width: 100%;
@@ -915,7 +991,9 @@ input {
   }
 
   .discover-grid,
-  .stack-row {
+  .stack-row,
+  .admin-kpis,
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 

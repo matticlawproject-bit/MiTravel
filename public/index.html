@@ -78,6 +78,7 @@
           <button data-route="searchHistory" type="button">Search History</button>
           <button data-route="personalization" type="button">Personalization</button>
           <button data-route="bookings" type="button">My bookings</button>
+          <button data-route="admin" id="adminNavBtn" class="hidden" type="button">Admin</button>
           <button data-route="settings" type="button">Settings</button>
         </nav>
       </aside>
@@ -294,6 +295,53 @@
           <h2>My bookings</h2>
           <section class="panel glass">
             <div id="bookingsList" class="flight-results"></div>
+          </section>
+        </article>
+
+        <article id="routeAdmin" class="route-panel">
+          <h2>Admin Dashboard</h2>
+
+          <section class="panel glass admin-kpis" id="adminKpis"></section>
+
+          <section class="panel glass">
+            <div class="title-row">
+              <h3>Duffel Fee Markup</h3>
+            </div>
+            <form id="adminPricingForm" class="form-stack compact">
+              <div class="mini-grid">
+                <label class="field outlined">
+                  <span>Economy fee %</span>
+                  <input id="adminFeeEconomyInput" name="feeEconomy" type="number" min="0" max="100" step="0.1" required />
+                </label>
+                <label class="field outlined">
+                  <span>Premium economy fee %</span>
+                  <input id="adminFeePremiumEconomyInput" name="feePremiumEconomy" type="number" min="0" max="100" step="0.1" required />
+                </label>
+              </div>
+              <div class="mini-grid">
+                <label class="field outlined">
+                  <span>Business fee %</span>
+                  <input id="adminFeeBusinessInput" name="feeBusiness" type="number" min="0" max="100" step="0.1" required />
+                </label>
+                <label class="field outlined">
+                  <span>First fee %</span>
+                  <input id="adminFeeFirstInput" name="feeFirst" type="number" min="0" max="100" step="0.1" required />
+                </label>
+              </div>
+              <button class="primary-btn compact" type="submit">Save fee</button>
+            </form>
+            <p id="adminPricingMessage" class="feedback"></p>
+          </section>
+
+          <section class="panel glass admin-grid">
+            <article class="admin-chart">
+              <h3>Top Searched Routes</h3>
+              <div id="adminRouteStats" class="admin-bar-list"></div>
+            </article>
+            <article class="admin-chart">
+              <h3>Frequent Flyer Programs</h3>
+              <div id="adminFfpStats" class="admin-bar-list"></div>
+            </article>
           </section>
         </article>
 

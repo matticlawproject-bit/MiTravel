@@ -3,8 +3,8 @@
     "id": "ae233974-02d1-4c67-bb50-69f180202ce4",
     "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
     "programName": "Miles & More",
-    "points": 0,
-    "tier": "",
+    "points": 150000,
+    "tier": "Senator",
     "memberId": "",
     "createdAt": "2026-02-19T17:01:48.890Z"
   },
@@ -12,8 +12,8 @@
     "id": "f92e559e-5f90-43cd-8570-93c4165770b2",
     "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
     "programName": "ANA Mileage Club",
-    "points": 0,
-    "tier": "",
+    "points": 1000000,
+    "tier": "Diamond",
     "memberId": "",
     "createdAt": "2026-02-19T17:27:11.775Z"
   },

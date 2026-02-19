@@ -10,7 +10,10 @@ const state = {
   selectedPreferences: new Set(),
   selectedFlightId: null,
   lastSearchResults: [],
+  lastParsedSearch: null,
   trendingDestination: null,
+  adminStats: null,
+  pricingConfig: null,
   searchInProgress: false,
   profileSaveInProgress: false,
   paymentMethod: 'card',
@@ -45,6 +48,7 @@ const routes = {
   personalization: document.getElementById('routePersonalization'),
   payment: document.getElementById('routePayment'),
   bookings: document.getElementById('routeBookings'),
+  admin: document.getElementById('routeAdmin'),
   settings: document.getElementById('routeSettings')
 };
 
@@ -54,6 +58,7 @@ const el = {
   goToAuthBtn: document.getElementById('goToAuthBtn'),
   heroGetStartedBtn: document.getElementById('heroGetStartedBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
+  adminNavBtn: document.getElementById('adminNavBtn'),
   sideNav: document.getElementById('sideNav'),
   loginForm: document.getElementById('loginForm'),
   signupForm: document.getElementById('signupForm'),
@@ -90,7 +95,16 @@ const el = {
   historyList: document.getElementById('historyList'),
   historyDetail: document.getElementById('historyDetail'),
   bookingsList: document.getElementById('bookingsList'),
-  twoFactorToggle: document.getElementById('twoFactorToggle')
+  twoFactorToggle: document.getElementById('twoFactorToggle'),
+  adminKpis: document.getElementById('adminKpis'),
+  adminRouteStats: document.getElementById('adminRouteStats'),
+  adminFfpStats: document.getElementById('adminFfpStats'),
+  adminPricingForm: document.getElementById('adminPricingForm'),
+  adminFeeEconomyInput: document.getElementById('adminFeeEconomyInput'),
+  adminFeePremiumEconomyInput: document.getElementById('adminFeePremiumEconomyInput'),
+  adminFeeBusinessInput: document.getElementById('adminFeeBusinessInput'),
+  adminFeeFirstInput: document.getElementById('adminFeeFirstInput'),
+  adminPricingMessage: document.getElementById('adminPricingMessage')
 };
 
 function setRequiredForSection(section, enabled) {
@@ -173,6 +187,13 @@ async function api(path, options = {}) {
 }
 
 function setRoute(route) {
+  const isAdmin = state.user?.role === 'admin';
+  if (route === 'admin' && !isAdmin) {
+    route = 'discover';
+  }
+  if (isAdmin && route !== 'admin') {
+    route = 'admin';
+  }
   state.route = route;
   Object.entries(routes).forEach(([key, panel]) => {
     panel.classList.toggle('active', key === route);
@@ -185,10 +206,32 @@ function setRoute(route) {
 
 function renderShell() {
   const loggedIn = Boolean(state.user);
+  const isAdmin = state.user?.role === 'admin';
   el.publicArea.classList.toggle('hidden', loggedIn);
   el.appArea.classList.toggle('hidden', !loggedIn);
   el.goToAuthBtn.classList.toggle('hidden', loggedIn);
   el.logoutBtn.classList.toggle('hidden', !loggedIn);
+  if (el.adminNavBtn) {
+    el.adminNavBtn.classList.toggle('hidden', !isAdmin);
+  }
+  if (el.sideNav) {
+    el.sideNav.querySelectorAll('button[data-route]').forEach(btn => {
+      const route = btn.dataset.route;
+      if (!route) return;
+      if (isAdmin) {
+        btn.classList.toggle('hidden', route !== 'admin');
+      } else {
+        btn.classList.toggle('hidden', route === 'admin');
+      }
+    });
+  }
+  if (!isAdmin && state.route === 'admin') {
+    setRoute('discover');
+    return;
+  }
+  if (isAdmin && state.route !== 'admin') {
+    setRoute('admin');
+  }
 }
 
 function renderDiscoverRecommendation() {
@@ -215,6 +258,65 @@ function renderDiscoverRecommendation() {
     el.discoverRecoMeta.textContent = '';
   }
   el.discoverRecoBtn.textContent = 'Search this route';
+}
+
+function formatMoney(amount) {
+  const value = Number(amount || 0);
+  return `${value.toFixed(2)} EUR`;
+}
+
+function renderAdminBars(target, items, labelKey) {
+  if (!target) return;
+  target.innerHTML = '';
+  if (!Array.isArray(items) || !items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-block';
+    empty.textContent = 'No data yet.';
+    target.appendChild(empty);
+    return;
+  }
+
+  const maxValue = Math.max(...items.map(item => Number(item.count || 0)), 1);
+  for (const item of items) {
+    const row = document.createElement('div');
+    row.className = 'admin-bar-row';
+    const width = Math.max(8, Math.round((Number(item.count || 0) / maxValue) * 100));
+    row.innerHTML = `
+      <div class="admin-bar-head"><strong>${item[labelKey]}</strong><span>${item.count}</span></div>
+      <div class="admin-bar-track"><div class="admin-bar-fill" style="width:${width}%"></div></div>
+    `;
+    target.appendChild(row);
+  }
+}
+
+function renderAdminDashboard() {
+  if (!el.adminKpis || !state.adminStats) return;
+  const stats = state.adminStats;
+  el.adminKpis.innerHTML = `
+    <article class="admin-kpi"><p>Registered users</p><strong>${stats.usersCount || 0}</strong></article>
+    <article class="admin-kpi"><p>Searches</p><strong>${stats.searchCount || 0}</strong></article>
+    <article class="admin-kpi"><p>Bookings</p><strong>${stats.bookingsCount || 0}</strong></article>
+    <article class="admin-kpi"><p>Booking amount</p><strong>${formatMoney(stats.bookingAmount)}</strong></article>
+    <article class="admin-kpi"><p>Amount paid</p><strong>${formatMoney(stats.amountPaid)}</strong></article>
+    <article class="admin-kpi"><p>Fee earned</p><strong>${formatMoney(stats.totalFeeAmount)}</strong></article>
+  `;
+
+  renderAdminBars(el.adminRouteStats, stats.topRoutes || [], 'route');
+  renderAdminBars(el.adminFfpStats, stats.frequentFlyerPrograms || [], 'program');
+
+  const feeByCabin = stats.pricing?.feeByCabin || state.pricingConfig?.feeByCabin || {};
+  if (el.adminFeeEconomyInput) {
+    el.adminFeeEconomyInput.value = String(Number(feeByCabin.economy ?? 0));
+  }
+  if (el.adminFeePremiumEconomyInput) {
+    el.adminFeePremiumEconomyInput.value = String(Number(feeByCabin.premium_economy ?? 0));
+  }
+  if (el.adminFeeBusinessInput) {
+    el.adminFeeBusinessInput.value = String(Number(feeByCabin.business ?? 0));
+  }
+  if (el.adminFeeFirstInput) {
+    el.adminFeeFirstInput.value = String(Number(feeByCabin.first ?? 0));
+  }
 }
 
 function setVoiceIdle(message = '') {
@@ -440,12 +542,14 @@ async function runAiSearch(message) {
       method: 'POST',
       body: JSON.stringify({
         message: trimmed,
-        preferences: Array.isArray(state.user?.preferences) ? state.user.preferences : []
+        preferences: Array.isArray(state.user?.preferences) ? state.user.preferences : [],
+        context: state.lastParsedSearch || {}
       })
     });
 
     addChatMessage('assistant', `${data.agent.provider === 'ota_crawler' ? 'OTA agent' : 'Duffel agent'}: ${data.agent.note}`);
     addChatMessage('assistant', data.reply || 'I found options.');
+    state.lastParsedSearch = data.parsed || state.lastParsedSearch;
     if (data.warning) {
       addChatMessage('assistant', data.warning);
     }
@@ -820,6 +924,25 @@ async function refreshTrendingDestination() {
   renderDiscoverRecommendation();
 }
 
+async function refreshAdminData() {
+  if (state.user?.role !== 'admin') {
+    state.adminStats = null;
+    state.pricingConfig = null;
+    if (el.adminKpis) el.adminKpis.innerHTML = '';
+    if (el.adminRouteStats) el.adminRouteStats.innerHTML = '';
+    if (el.adminFfpStats) el.adminFfpStats.innerHTML = '';
+    return;
+  }
+
+  const [statsData, pricingData] = await Promise.all([
+    api('/api/admin/stats'),
+    api('/api/admin/pricing-config')
+  ]);
+  state.adminStats = statsData.stats || null;
+  state.pricingConfig = pricingData.pricing || null;
+  renderAdminDashboard();
+}
+
 function formatHistoryDate(iso) {
   if (!iso) return '';
   const date = new Date(iso);
@@ -983,6 +1106,7 @@ async function refreshSearchHistory() {
 async function startNewSearchSession() {
   state.selectedFlightId = null;
   state.lastSearchResults = [];
+  state.lastParsedSearch = null;
   el.aiMessageInput.value = '';
   showFeedback(el.searchMessage, '');
   await createSearchSession();
@@ -992,14 +1116,21 @@ async function startNewSearchSession() {
 
 async function handleAuthenticatedBoot() {
   await refreshUser();
-  await Promise.all([refreshRewards(), refreshPayments(), refreshBookings(), refreshSearchHistory(), refreshTrendingDestination()]);
+  await Promise.all([
+    refreshRewards(),
+    refreshPayments(),
+    refreshBookings(),
+    refreshSearchHistory(),
+    refreshTrendingDestination(),
+    refreshAdminData()
+  ]);
   if (state.searchHistory.length) {
     await openSearchSession(state.searchHistory[0].id, false);
   } else {
     await startNewSearchSession();
   }
   renderShell();
-  setRoute('discover');
+  setRoute(state.user?.role === 'admin' ? 'admin' : 'discover');
 }
 
 async function boot() {
@@ -1195,6 +1326,41 @@ el.settingsForm.addEventListener('submit', async event => {
   }
 });
 
+if (el.adminPricingForm) {
+  el.adminPricingForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    showFeedback(el.adminPricingMessage, '');
+    if (state.user?.role !== 'admin') {
+      showFeedback(el.adminPricingMessage, 'Admin access required.', true);
+      return;
+    }
+    if (!el.adminPricingForm.reportValidity()) return;
+
+    try {
+      const payload = Object.fromEntries(new FormData(el.adminPricingForm).entries());
+      const feeByCabin = {
+        economy: Number(payload.feeEconomy),
+        premium_economy: Number(payload.feePremiumEconomy),
+        business: Number(payload.feeBusiness),
+        first: Number(payload.feeFirst)
+      };
+      const data = await api('/api/admin/pricing-config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          feeByCabin,
+          // Backward compatibility for any older running server process.
+          duffelFeePercent: feeByCabin.economy
+        })
+      });
+      state.pricingConfig = data.pricing;
+      await refreshAdminData();
+      showFeedback(el.adminPricingMessage, 'Fee configuration updated.');
+    } catch (error) {
+      showFeedback(el.adminPricingMessage, error.message, true);
+    }
+  });
+}
+
 el.aiSearchForm.addEventListener('submit', async event => {
   event.preventDefault();
   const message = el.aiMessageInput.value;
@@ -1236,12 +1402,18 @@ el.logoutBtn.addEventListener('click', async () => {
   state.activeSearchSessionId = '';
   state.activeSearchMessages = [];
   state.selectedFlightId = null;
+  state.lastParsedSearch = null;
+  state.adminStats = null;
+  state.pricingConfig = null;
   el.paymentList.innerHTML = '';
   el.rewardCards.innerHTML = '';
   el.bookingsList.innerHTML = '';
   el.chatFeed.innerHTML = '';
   el.historyList.innerHTML = '';
   el.historyDetail.innerHTML = '';
+  if (el.adminKpis) el.adminKpis.innerHTML = '';
+  if (el.adminRouteStats) el.adminRouteStats.innerHTML = '';
+  if (el.adminFfpStats) el.adminFfpStats.innerHTML = '';
   renderShell();
 });
 
