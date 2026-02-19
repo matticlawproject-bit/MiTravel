@@ -1662,5 +1662,376 @@
     "selectedFlightId": "",
     "createdAt": "2026-02-19T18:51:23.159Z",
     "updatedAt": "2026-02-19T18:56:57.052Z"
+  },
+  {
+    "id": "046f48a3-8038-4f21-b434-d602f7d3932d",
+    "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
+    "title": "AI Search",
+    "messages": [
+      {
+        "role": "assistant",
+        "text": "I am your flight search agent. Ask me to find reward flights and then select or buy directly.",
+        "createdAt": "2026-02-19T19:08:59.620Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Paris to Miami on 10th July",
+        "createdAt": "2026-02-19T19:09:16.882Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Could not detect route. Please include origin and destination (e.g. from Frankfurt to New York).",
+        "createdAt": "2026-02-19T19:09:16.948Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Paris to Miami on 14th March and back on 18th March",
+        "createdAt": "2026-02-19T19:10:06.773Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Could not detect route. Please include origin and destination (e.g. from Frankfurt to New York).",
+        "createdAt": "2026-02-19T19:10:06.834Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Bangkk to singapore on 14th March and back on 18th March",
+        "createdAt": "2026-02-19T19:13:17.719Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T19:13:18.842Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 1 round-trip option(s) from Duffel.",
+        "createdAt": "2026-02-19T19:13:18.843Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from SYD to MNL on 14th March",
+        "createdAt": "2026-02-19T19:14:09.681Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T19:14:13.567Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 8 round-trip option(s) from Duffel.",
+        "createdAt": "2026-02-19T19:14:13.568Z"
+      },
+      {
+        "role": "user",
+        "text": "Find flights from SIN to MNL on the 10th march",
+        "createdAt": "2026-02-19T19:14:34.247Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T19:14:36.652Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 8 round-trip option(s) from Duffel.",
+        "createdAt": "2026-02-19T19:14:36.653Z"
+      },
+      {
+        "role": "user",
+        "text": "Find flights from Singapore to manila on 10th march",
+        "createdAt": "2026-02-19T19:14:54.290Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T19:14:54.591Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I could not find round-trip seeded flights for AAH to AAH, outbound 2026-03-10 and return 2026-03-18.",
+        "createdAt": "2026-02-19T19:14:54.593Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel unavailable: Field 'destination' must be different from the origin. Showing seeded fallback data.",
+        "createdAt": "2026-02-19T19:14:54.594Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from atlanta to nantes on 14th March",
+        "createdAt": "2026-02-19T19:17:54.695Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T19:17:55.565Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 2 option(s) from Duffel.",
+        "createdAt": "2026-02-19T19:17:55.567Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Las vegas to munich on 14th march",
+        "createdAt": "2026-02-19T19:21:41.026Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T19:21:41.656Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 1 option(s) from Duffel.",
+        "createdAt": "2026-02-19T19:21:41.657Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from miami to dubai on 14th march",
+        "createdAt": "2026-02-19T19:22:07.924Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T19:22:10.513Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 8 option(s) from Duffel.",
+        "createdAt": "2026-02-19T19:22:10.514Z"
+      }
+    ],
+    "latestResults": [
+      {
+        "id": "duffel_off_0000B3UMRTqsmBFgUdqkxV",
+        "offerId": "off_0000B3UMRTqsmBFgUdqkxV",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "SWISS",
+        "outboundFlightNumber": "LX0067",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "SWISS",
+        "flightNumber": "LX0067",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 282.86,
+        "currency": "GBP",
+        "depTime": "17:40",
+        "arrTime": "22:15",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      },
+      {
+        "id": "duffel_off_0000B3UMRTqWnUy6TXgTPb",
+        "offerId": "off_0000B3UMRTqWnUy6TXgTPb",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "SWISS",
+        "outboundFlightNumber": "LX0065",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "SWISS",
+        "flightNumber": "LX0065",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 282.86,
+        "currency": "GBP",
+        "depTime": "20:50",
+        "arrTime": "22:15",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      },
+      {
+        "id": "duffel_off_0000B3UMRTqAoogWSRWBrB",
+        "offerId": "off_0000B3UMRTqAoogWSRWBrB",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "United Airlines",
+        "outboundFlightNumber": "UA1965",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "United Airlines",
+        "flightNumber": "UA1965",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 282.86,
+        "currency": "GBP",
+        "depTime": "16:49",
+        "arrTime": "22:15",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      },
+      {
+        "id": "duffel_off_0000B3UMRTqWnUy6TXgTPs",
+        "offerId": "off_0000B3UMRTqWnUy6TXgTPs",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "Lufthansa",
+        "outboundFlightNumber": "LH0461",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "Lufthansa",
+        "flightNumber": "LH0461",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 286.24,
+        "currency": "GBP",
+        "depTime": "19:45",
+        "arrTime": "07:30",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      },
+      {
+        "id": "duffel_off_0000B3UMRTqsmBFgUdqkx4",
+        "offerId": "off_0000B3UMRTqsmBFgUdqkx4",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "Lufthansa",
+        "outboundFlightNumber": "LH0463",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "Lufthansa",
+        "flightNumber": "LH0463",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 302.23,
+        "currency": "GBP",
+        "depTime": "17:40",
+        "arrTime": "22:35",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      },
+      {
+        "id": "duffel_off_0000B3UMRTqAoogWSRWBqP",
+        "offerId": "off_0000B3UMRTqAoogWSRWBqP",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "Lufthansa",
+        "outboundFlightNumber": "LH0461",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "Lufthansa",
+        "flightNumber": "LH0461",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 310.64,
+        "currency": "GBP",
+        "depTime": "19:45",
+        "arrTime": "22:35",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      },
+      {
+        "id": "duffel_off_0000B3UMRTqAoogWSRWBqv",
+        "offerId": "off_0000B3UMRTqAoogWSRWBqv",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "United Airlines",
+        "outboundFlightNumber": "UA1538",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "United Airlines",
+        "flightNumber": "UA1538",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 330.17,
+        "currency": "GBP",
+        "depTime": "18:34",
+        "arrTime": "22:35",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      },
+      {
+        "id": "duffel_off_0000B3UMRTqWnUy6TXgTOb",
+        "offerId": "off_0000B3UMRTqWnUy6TXgTOb",
+        "source": "duffel",
+        "from": "MIA",
+        "to": "DXB",
+        "outboundFrom": "MIA",
+        "outboundTo": "DXB",
+        "outboundAirline": "United Airlines",
+        "outboundFlightNumber": "UA1965",
+        "date": "2026-03-14",
+        "returnDate": "",
+        "roundTrip": false,
+        "returnFrom": "DXB",
+        "returnTo": "MIA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "Flight",
+        "airline": "United Airlines",
+        "flightNumber": "UA1965",
+        "cabin": "economy",
+        "pointsRequired": 0,
+        "cashPrice": 382.28,
+        "currency": "GBP",
+        "depTime": "16:49",
+        "arrTime": "22:35",
+        "returnDepTime": "",
+        "returnArrTime": ""
+      }
+    ],
+    "selectedFlightId": "",
+    "createdAt": "2026-02-19T19:08:59.610Z",
+    "updatedAt": "2026-02-19T19:22:10.526Z"
   }
 ]

@@ -26,6 +26,7 @@ const FILES = {
   payments: path.join(DATA_DIR, 'payments.json'),
   bookings: path.join(DATA_DIR, 'bookings.json'),
   searchHistory: path.join(DATA_DIR, 'searchHistory.json'),
+  airportsIndex: path.join(DATA_DIR, 'airportsIndex.json'),
   adminConfig: path.join(DATA_DIR, 'adminConfig.json')
 };
 
@@ -85,6 +86,7 @@ function ensureDataFiles() {
     [FILES.payments]: [],
     [FILES.bookings]: [],
     [FILES.searchHistory]: [],
+    [FILES.airportsIndex]: [],
     [FILES.adminConfig]: {
       feeByCabin: {
         economy: 0,
@@ -984,6 +986,9 @@ function normalizeAirportFromText(text) {
     heathrow: 'LHR',
     lhr: 'LHR',
     paris: 'CDG',
+    miami: 'MIA',
+    singapore: 'SIN',
+    manila: 'MNL',
     nice: 'NCE',
     nce: 'NCE',
     'cote d azur': 'NCE',
@@ -1027,6 +1032,199 @@ function normalizeAirportFromText(text) {
   }
 
   return '';
+}
+
+function normalizeLocationQuery(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.,!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const airportLookupCache = {
+  loaded: false,
+  byCity: new Map(),
+  byName: new Map(),
+  byIata: new Map()
+};
+
+function loadAirportLookup() {
+  if (airportLookupCache.loaded) {
+    return airportLookupCache;
+  }
+
+  if (!fs.existsSync(FILES.airportsIndex)) {
+    airportLookupCache.loaded = true;
+    return airportLookupCache;
+  }
+
+  const items = readJson(FILES.airportsIndex);
+  if (!Array.isArray(items)) {
+    airportLookupCache.loaded = true;
+    return airportLookupCache;
+  }
+
+  for (const entry of items) {
+    const iata = String(entry?.iata || '').trim().toUpperCase();
+    const city = normalizeLocationQuery(entry?.city || '');
+    const name = normalizeLocationQuery(entry?.name || '');
+    if (!/^[A-Z0-9]{3}$/.test(iata)) continue;
+
+    airportLookupCache.byIata.set(iata, iata);
+    if (city) {
+      const list = airportLookupCache.byCity.get(city) || [];
+      list.push(iata);
+      airportLookupCache.byCity.set(city, list);
+    }
+    if (name) {
+      const list = airportLookupCache.byName.get(name) || [];
+      list.push(iata);
+      airportLookupCache.byName.set(name, list);
+    }
+  }
+
+  airportLookupCache.loaded = true;
+  return airportLookupCache;
+}
+
+function firstUniqueCode(codes) {
+  if (!Array.isArray(codes) || !codes.length) return '';
+  const unique = [...new Set(codes.filter(code => /^[A-Z0-9]{3}$/.test(String(code || '').toUpperCase())))];
+  return unique[0] || '';
+}
+
+function findIataFromAirportLookup(value) {
+  const query = normalizeLocationQuery(value);
+  if (!query) return '';
+  const cache = loadAirportLookup();
+
+  if (/^[a-z]{3}$/.test(query)) {
+    return query.toUpperCase();
+  }
+
+  const exactCity = firstUniqueCode(cache.byCity.get(query));
+  if (exactCity) return exactCity;
+
+  const exactName = firstUniqueCode(cache.byName.get(query));
+  if (exactName) return exactName;
+
+  let bestCode = '';
+  let bestScore = -1;
+
+  for (const [city, codes] of cache.byCity.entries()) {
+    if (!city) continue;
+    let score = 0;
+    if (city.startsWith(query)) {
+      score = 90 - Math.abs(city.length - query.length);
+    } else if (city.includes(query)) {
+      score = 70 - Math.abs(city.length - query.length);
+    } else if (query.includes(city) && city.length >= 4) {
+      score = 65 - Math.abs(query.length - city.length);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestCode = firstUniqueCode(codes);
+    }
+  }
+
+  if (bestCode) return bestCode;
+  return '';
+}
+
+function guessIataFromFreeText(value) {
+  const clean = normalizeLocationQuery(value);
+  if (!clean) return '';
+  if (/^[a-z]{3}$/.test(clean)) return clean.toUpperCase();
+
+  const words = clean.split(' ').filter(Boolean);
+  const cityCodeAliases = {
+    nyc: 'JFK',
+    lon: 'LHR',
+    par: 'CDG',
+    sin: 'SIN',
+    mnl: 'MNL',
+    rom: 'FCO',
+    mil: 'MXP',
+    chi: 'ORD',
+    mia: 'MIA',
+    lax: 'LAX'
+  };
+
+  if (words.length === 1 && words[0].length >= 3) {
+    const token = words[0].slice(0, 3);
+    if (cityCodeAliases[token]) return cityCodeAliases[token];
+    return '';
+  }
+
+  if (words.length > 1) {
+    const initials = words.map(w => w[0]).join('').slice(0, 3);
+    if (initials.length === 3) return initials.toUpperCase();
+  }
+  return '';
+}
+
+function pickDuffelIataFromPayload(payloadJson) {
+  const items = Array.isArray(payloadJson?.data) ? payloadJson.data : [];
+  if (!items.length) return '';
+
+  for (const item of items) {
+    const candidates = [
+      item?.iata_code,
+      item?.iata_city_code,
+      item?.airport?.iata_code,
+      item?.city?.iata_code,
+      item?.city?.iata_city_code
+    ];
+    for (const code of candidates) {
+      const normalized = String(code || '').trim().toUpperCase();
+      if (/^[A-Z]{3}$/.test(normalized)) {
+        return normalized;
+      }
+    }
+  }
+  return '';
+}
+
+async function resolveLocationToIata(value) {
+  const direct = normalizeAirportFromText(String(value || ''));
+  if (direct) return direct;
+
+  const query = normalizeLocationQuery(value);
+  if (!query) return '';
+
+  const fromIndex = findIataFromAirportLookup(query);
+  if (fromIndex) return fromIndex;
+
+  if (DUFFEL_ACCESS_TOKEN) {
+    const endpointCandidates = [
+      `${DUFFEL_BASE_URL}/air/airports?name=${encodeURIComponent(query)}&limit=1`,
+      `${DUFFEL_BASE_URL}/air/cities?name=${encodeURIComponent(query)}&limit=1`,
+      `${DUFFEL_BASE_URL}/air/airports?suggestions=${encodeURIComponent(query)}`
+    ];
+
+    for (const endpoint of endpointCandidates) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${DUFFEL_ACCESS_TOKEN}`,
+            'Duffel-Version': DUFFEL_VERSION,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!response.ok) continue;
+        const payloadJson = await response.json();
+        const resolved = pickDuffelIataFromPayload(payloadJson);
+        if (resolved) return resolved;
+      } catch {
+        // Fall through to next strategy.
+      }
+    }
+  }
+
+  return guessIataFromFreeText(query);
 }
 
 function resolveTravelDate(monthNumber, dayNumber) {
@@ -1251,6 +1449,8 @@ function extractAiSearchParams(message) {
   return {
     from: normalizeAirportFromText(fromText),
     to: normalizeAirportFromText(toText),
+    fromText: String(fromText || '').trim(),
+    toText: String(toText || '').trim(),
     date,
     returnDate,
     cabin,
@@ -2499,9 +2699,38 @@ async function handleApi(req, res, pathname) {
     const fallbackFrom = user.homeAirport || '';
     const profileLoyaltyAccounts = buildDuffelLoyaltyAccountsForUser(user.id);
     const defaultDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const fromCandidate = parsed.from
+      || parsed.fromText
+      || String(context.from || '').trim()
+      || fallbackFrom;
+    const toCandidate = parsed.to
+      || parsed.toText
+      || String(context.to || '').trim();
+    let resolvedFrom = await resolveLocationToIata(fromCandidate);
+    let resolvedTo = await resolveLocationToIata(toCandidate);
+
+    const normalizedFromCandidate = normalizeLocationQuery(fromCandidate);
+    const normalizedToCandidate = normalizeLocationQuery(toCandidate);
+    if (
+      resolvedFrom &&
+      resolvedTo &&
+      resolvedFrom === resolvedTo &&
+      normalizedFromCandidate &&
+      normalizedToCandidate &&
+      normalizedFromCandidate !== normalizedToCandidate
+    ) {
+      const guessedFrom = guessIataFromFreeText(fromCandidate);
+      const guessedTo = guessIataFromFreeText(toCandidate);
+      if (guessedFrom && guessedTo && guessedFrom !== guessedTo) {
+        resolvedFrom = guessedFrom;
+        resolvedTo = guessedTo;
+      }
+    }
+
     const finalPayload = {
-      from: parsed.from || String(context.from || '').trim().toUpperCase() || fallbackFrom,
-      to: parsed.to || String(context.to || '').trim().toUpperCase(),
+      from: resolvedFrom,
+      to: resolvedTo,
       date: parsed.date || String(context.date || '').trim() || defaultDate,
       returnDate: parsed.returnDate || String(context.returnDate || '').trim() || '',
       cabin: parsed.cabin || String(context.cabin || '').trim(),
