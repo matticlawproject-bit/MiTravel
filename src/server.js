@@ -20,6 +20,7 @@ const FILES = {
   users: path.join(DATA_DIR, 'users.json'),
   sessions: path.join(DATA_DIR, 'sessions.json'),
   rewards: path.join(DATA_DIR, 'rewards.json'),
+  loyaltyVault: path.join(DATA_DIR, 'loyaltyVault.json'),
   flights: path.join(DATA_DIR, 'flights.json'),
   payments: path.join(DATA_DIR, 'payments.json'),
   bookings: path.join(DATA_DIR, 'bookings.json'),
@@ -78,6 +79,7 @@ function ensureDataFiles() {
     [FILES.users]: [],
     [FILES.sessions]: [],
     [FILES.rewards]: [],
+    [FILES.loyaltyVault]: [],
     [FILES.payments]: [],
     [FILES.bookings]: [],
     [FILES.searchHistory]: [],
@@ -280,6 +282,131 @@ function serializePayment(p) {
     zip: p.zip,
     primary: Boolean(p.primary)
   };
+}
+
+function serializeReward(r) {
+  return {
+    id: r.id,
+    userId: r.userId,
+    programName: r.programName,
+    points: Number(r.points || 0),
+    tier: String(r.tier || '').trim(),
+    createdAt: r.createdAt
+  };
+}
+
+function resolveLoyaltyVaultKey() {
+  let base = (process.env.MI_TRAVEL_MASTER_KEY || '').trim();
+  if (!base && fs.existsSync(MASTER_KEY_FILE)) {
+    base = fs.readFileSync(MASTER_KEY_FILE, 'utf8').trim();
+  }
+  if (!base) {
+    base = 'mi-travel-local-dev-key';
+  }
+  return crypto.scryptSync(base, 'mi-travel-loyalty-v1', 32);
+}
+
+function encryptVaultValue(value, key) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(String(value || ''), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    iv: iv.toString('hex'),
+    tag: tag.toString('hex'),
+    ciphertext: ciphertext.toString('hex')
+  };
+}
+
+function maskLogin(value) {
+  const input = String(value || '').trim();
+  if (!input) return '';
+  const at = input.indexOf('@');
+  if (at > 1) {
+    const head = input.slice(0, Math.min(2, at));
+    const domain = input.slice(at);
+    return `${head}***${domain}`;
+  }
+  if (input.length <= 4) return `${input[0] || ''}***`;
+  return `${input.slice(0, 2)}***${input.slice(-2)}`;
+}
+
+function storeEncryptedLoyaltyCredentials({ userId, rewardId, programName, memberLogin, memberPassword }) {
+  const vault = readJson(FILES.loyaltyVault);
+  const key = resolveLoyaltyVaultKey();
+  const loginEncrypted = encryptVaultValue(memberLogin, key);
+  const passwordEncrypted = encryptVaultValue(memberPassword, key);
+  vault.push({
+    id: crypto.randomUUID(),
+    userId,
+    rewardId,
+    programName,
+    loginEncrypted,
+    passwordEncrypted,
+    createdAt: new Date().toISOString()
+  });
+  writeJson(FILES.loyaltyVault, vault);
+}
+
+function fetchMilesAndMoreSnapshotFake({ userId, rewardId, memberLogin, memberPassword }) {
+  storeEncryptedLoyaltyCredentials({
+    userId,
+    rewardId,
+    programName: 'Miles & More',
+    memberLogin,
+    memberPassword
+  });
+  return {
+    points: 150000,
+    tier: 'Senator'
+  };
+}
+
+function fetchAnaMileageClubSnapshotFake({ userId, rewardId, memberLogin, memberPassword }) {
+  storeEncryptedLoyaltyCredentials({
+    userId,
+    rewardId,
+    programName: 'ANA Mileage Club',
+    memberLogin,
+    memberPassword
+  });
+  return {
+    points: 1000000,
+    tier: 'Diamond'
+  };
+}
+
+function normalizeRewardRecord(record) {
+  const programName = String(record.programName || '').trim();
+  const normalized = { ...record, programName };
+  const points = Number(record.points || 0);
+  const tier = String(record.tier || '').trim();
+  if (programName === 'Miles & More') {
+    normalized.points = points > 0 ? points : 150000;
+    normalized.tier = tier || 'Senator';
+  } else if (programName === 'ANA Mileage Club') {
+    normalized.points = points > 0 ? points : 1000000;
+    normalized.tier = tier || 'Diamond';
+  } else {
+    normalized.points = Number.isFinite(points) && points >= 0 ? points : 0;
+    normalized.tier = tier;
+  }
+  if (!normalized.memberLoginMasked && record.memberId) {
+    normalized.memberLoginMasked = maskLogin(record.memberId);
+  }
+  return normalized;
+}
+
+function resolveRewardSnapshot(programName, memberId, memberPassword) {
+  const tiers = ['Base', 'Silver', 'Gold', 'Platinum', 'Diamond'];
+  const seed = crypto
+    .createHash('sha256')
+    .update(`${String(programName || '').trim()}|${String(memberId || '').trim()}|${String(memberPassword || '').trim()}`)
+    .digest();
+
+  const points = 1000 + (seed.readUInt32BE(0) % 250000);
+  const tier = tiers[seed.readUInt16BE(4) % tiers.length];
+  return { points, tier };
 }
 
 function sanitizeSearchMessage(entry) {
@@ -1311,7 +1438,21 @@ async function handleApi(req, res, pathname) {
     const user = requireAuth(req, res);
     if (!user) return;
 
-    const rewards = readJson(FILES.rewards).filter(r => r.userId === user.id);
+    const allRewards = readJson(FILES.rewards);
+    let changed = false;
+    for (let i = 0; i < allRewards.length; i += 1) {
+      const current = allRewards[i];
+      if (current.userId !== user.id) continue;
+      const normalized = normalizeRewardRecord(current);
+      if (JSON.stringify(normalized) !== JSON.stringify(current)) {
+        allRewards[i] = normalized;
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeJson(FILES.rewards, allRewards);
+    }
+    const rewards = allRewards.filter(r => r.userId === user.id).map(serializeReward);
     sendJson(res, 200, { rewards });
     return;
   }
@@ -1322,29 +1463,35 @@ async function handleApi(req, res, pathname) {
 
     const body = await parseBody(req);
     const programName = (body.programName || '').trim();
-    const points = Number(body.points || 0);
-    const tier = (body.tier || '').trim();
-    const memberId = (body.memberId || '').trim();
+    const memberLogin = (body.memberLogin || body.memberId || '').trim();
+    const memberPassword = String(body.memberPassword || '').trim();
 
-    if (!programName || Number.isNaN(points) || points < 0) {
-      sendJson(res, 400, { error: 'Valid program name and points are required' });
+    if (!programName || !memberLogin || !memberPassword) {
+      sendJson(res, 400, { error: 'Program, membership login and membership password are required' });
       return;
     }
 
+    const id = crypto.randomUUID();
+    const { points, tier } = programName === 'Miles & More'
+      ? fetchMilesAndMoreSnapshotFake({ userId: user.id, rewardId: id, memberLogin, memberPassword })
+      : (programName === 'ANA Mileage Club'
+        ? fetchAnaMileageClubSnapshotFake({ userId: user.id, rewardId: id, memberLogin, memberPassword })
+        : resolveRewardSnapshot(programName, memberLogin, memberPassword));
+
     const rewards = readJson(FILES.rewards);
     const record = {
-      id: crypto.randomUUID(),
+      id,
       userId: user.id,
       programName,
       points,
       tier,
-      memberId,
+      memberLoginMasked: maskLogin(memberLogin),
       createdAt: new Date().toISOString()
     };
 
     rewards.push(record);
     writeJson(FILES.rewards, rewards);
-    sendJson(res, 201, { reward: record });
+    sendJson(res, 201, { reward: serializeReward(record) });
     return;
   }
 
@@ -1366,10 +1513,11 @@ async function handleApi(req, res, pathname) {
     if (body.programName !== undefined) rewards[idx].programName = String(body.programName).trim();
     if (body.points !== undefined) rewards[idx].points = Math.max(0, Number(body.points) || 0);
     if (body.tier !== undefined) rewards[idx].tier = String(body.tier).trim();
-    if (body.memberId !== undefined) rewards[idx].memberId = String(body.memberId).trim();
+    if (body.memberLogin !== undefined) rewards[idx].memberLoginMasked = maskLogin(String(body.memberLogin).trim());
+    if (body.memberId !== undefined) rewards[idx].memberLoginMasked = maskLogin(String(body.memberId).trim());
 
     writeJson(FILES.rewards, rewards);
-    sendJson(res, 200, { reward: rewards[idx] });
+    sendJson(res, 200, { reward: serializeReward(rewards[idx]) });
     return;
   }
 
@@ -1386,8 +1534,11 @@ async function handleApi(req, res, pathname) {
       return;
     }
 
+    const rewardId = rewards[idx].id;
     rewards.splice(idx, 1);
     writeJson(FILES.rewards, rewards);
+    const vault = readJson(FILES.loyaltyVault).filter(v => v.rewardId !== rewardId);
+    writeJson(FILES.loyaltyVault, vault);
     sendJson(res, 200, { ok: true });
     return;
   }

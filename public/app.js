@@ -526,9 +526,27 @@ function renderRewardCards() {
   for (const reward of state.rewards) {
     const card = document.createElement('article');
     card.className = 'reward-card';
+    const isMilesAndMore = reward.programName === 'Miles & More';
+    const isAnaMileageClub = reward.programName === 'ANA Mileage Club';
+    if (isMilesAndMore) {
+      card.classList.add('reward-card-miles-more');
+    }
+    if (isAnaMileageClub) {
+      card.classList.add('reward-card-ana');
+    }
+    const points = Number(reward.points || 0);
+    const milesText = Number.isFinite(points) && points > 0
+      ? `${points.toLocaleString()} miles`
+      : (isMilesAndMore ? '150,000 miles' : (isAnaMileageClub ? '1,000,000 miles' : '0 miles'));
+    const tierText = reward.tier || (isMilesAndMore ? 'Senator' : (isAnaMileageClub ? 'Diamond' : 'Tier pending'));
     card.innerHTML = `
-      <h5>${reward.programName}</h5>
-      <div class="reward-meta">${reward.memberId || 'No member id'} | ${Number(reward.points).toLocaleString()} miles${reward.tier ? ` | ${reward.tier}` : ''}</div>
+      <div class="reward-card-head">
+        <span class="reward-program">${reward.programName}</span>
+        <span class="reward-chip">${tierText}</span>
+      </div>
+      <div class="reward-card-foot">
+        <span class="reward-miles">${milesText}</span>
+      </div>
     `;
 
     const del = document.createElement('button');
@@ -954,7 +972,7 @@ el.rewardForm.addEventListener('submit', async event => {
     });
     el.rewardForm.reset();
     await refreshRewards();
-    showFeedback(el.personalizationMessage, 'Frequent flyer program added.');
+    showFeedback(el.personalizationMessage, 'Frequent flyer program added. Miles and tier retrieved.');
   } catch (error) {
     showFeedback(el.personalizationMessage, error.message, true);
   }

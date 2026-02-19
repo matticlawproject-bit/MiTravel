@@ -133,13 +133,79 @@
             <section class="panel glass">
               <h3>Frequent Flyer Programs</h3>
               <div id="rewardCards" class="ffp-strip"></div>
-              <form id="rewardForm" class="form-stack compact">
-                <label class="field filled"><span>Program</span><input name="programName" type="text" required /></label>
-                <label class="field outlined"><span>Membership number</span><input name="memberId" type="text" /></label>
-                <div class="mini-grid">
-                  <label class="field outlined"><span>Miles</span><input name="points" type="number" min="0" required /></label>
-                  <label class="field outlined"><span>Tier</span><input name="tier" type="text" /></label>
-                </div>
+              <form id="rewardForm" class="form-stack compact" autocomplete="off">
+                <label class="field filled">
+                  <span>Program</span>
+                  <select name="programName" required>
+                    <option value="" selected disabled>Select a frequent flyer program</option>
+                    <option value="AerClub">AerClub</option>
+                    <option value="Aeroflot Bonus">Aeroflot Bonus</option>
+                    <option value="Aerolineas Plus">Aerolineas Plus</option>
+                    <option value="Aeroplan">Aeroplan</option>
+                    <option value="Air Moldova Club">Air Moldova Club</option>
+                    <option value="AirRewards">AirRewards</option>
+                    <option value="Airpoints">Airpoints</option>
+                    <option value="Alfursan">Alfursan</option>
+                    <option value="ANA Mileage Club">ANA Mileage Club</option>
+                    <option value="Asiana Club">Asiana Club</option>
+                    <option value="Bamboo Club">Bamboo Club</option>
+                    <option value="BlueMiles">BlueMiles</option>
+                    <option value="BreezePoints">BreezePoints</option>
+                    <option value="Cedar Miles">Cedar Miles</option>
+                    <option value="Celestars">Celestars</option>
+                    <option value="Club Premier">Club Premier</option>
+                    <option value="ConnectMiles">ConnectMiles</option>
+                    <option value="Dynasty Flyer">Dynasty Flyer</option>
+                    <option value="Eastern Miles">Eastern Miles</option>
+                    <option value="Egret Club">Egret Club</option>
+                    <option value="Enrich">Enrich</option>
+                    <option value="EuroBonus">EuroBonus</option>
+                    <option value="Executive Club">Executive Club</option>
+                    <option value="Finnair Plus">Finnair Plus</option>
+                    <option value="FlySmiLes">FlySmiLes</option>
+                    <option value="Flying Blue">Flying Blue</option>
+                    <option value="Flying Returns">Flying Returns</option>
+                    <option value="Flypass">Flypass</option>
+                    <option value="Free Spirit">Free Spirit</option>
+                    <option value="GarudaMiles">GarudaMiles</option>
+                    <option value="Iberia Plus">Iberia Plus</option>
+                    <option value="Icelandair Saga Club">Icelandair Saga Club</option>
+                    <option value="Infinity MileageLands">Infinity MileageLands</option>
+                    <option value="JAL Mileage Bank">JAL Mileage Bank</option>
+                    <option value="KrisFlyer">KrisFlyer</option>
+                    <option value="LATAM Pass">LATAM Pass</option>
+                    <option value="LifeMiles">LifeMiles</option>
+                    <option value="LotusMiles">LotusMiles</option>
+                    <option value="Marco Polo Club">Marco Polo Club</option>
+                    <option value="MileagePlus">MileagePlus</option>
+                    <option value="Miles &amp; More">Miles &amp; More</option>
+                    <option value="Miles&amp;Smiles">Miles&amp;Smiles</option>
+                    <option value="Nomad Club">Nomad Club</option>
+                    <option value="Norwegian Reward">Norwegian Reward</option>
+                    <option value="OK Plus">OK Plus</option>
+                    <option value="PhoenixMiles">PhoenixMiles</option>
+                    <option value="Privilege Club">Privilege Club</option>
+                    <option value="Qantas Frequent Flyer">Qantas Frequent Flyer</option>
+                    <option value="Rapid Rewards">Rapid Rewards</option>
+                    <option value="Royal Club">Royal Club</option>
+                    <option value="Royal Orchid Plus">Royal Orchid Plus</option>
+                    <option value="S7 Priority">S7 Priority</option>
+                    <option value="SAA Voyager">SAA Voyager</option>
+                    <option value="SeaMiles">SeaMiles</option>
+                    <option value="ShebaMiles">ShebaMiles</option>
+                    <option value="SKYPASS">SKYPASS</option>
+                    <option value="SkyMiles">SkyMiles</option>
+                    <option value="Suma">Suma</option>
+                    <option value="Sun Country Rewards">Sun Country Rewards</option>
+                    <option value="TAP Miles&amp;Go">TAP Miles&amp;Go</option>
+                    <option value="Teemane Club">Teemane Club</option>
+                    <option value="Wizz Discount Club">Wizz Discount Club</option>
+                    <option value="airasia rewards">airasia rewards</option>
+                    <option value="E-Smiles">E-Smiles</option>
+                  </select>
+                </label>
+                <label class="field outlined"><span>Membership login</span><input name="memberLogin" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" /></label>
+                <label class="field outlined"><span>Membership password</span><input name="memberPassword" type="password" required autocomplete="new-password" /></label>
                 <button class="primary-btn compact" type="submit">Add program</button>
               </form>
             </section>
