@@ -11,6 +11,7 @@ const state = {
   selectedFlightId: null,
   lastSearchResults: [],
   searchInProgress: false,
+  profileSaveInProgress: false,
   voice: {
     supported: false,
     listening: false,
@@ -337,7 +338,10 @@ async function runAiSearch(message) {
   try {
     const data = await api('/api/flights/ai-search', {
       method: 'POST',
-      body: JSON.stringify({ message: trimmed })
+      body: JSON.stringify({
+        message: trimmed,
+        preferences: Array.isArray(state.user?.preferences) ? state.user.preferences : []
+      })
     });
 
     addChatMessage('assistant', `${data.agent.provider === 'ota_crawler' ? 'OTA agent' : 'Duffel agent'}: ${data.agent.note}`);
@@ -620,7 +624,7 @@ function renderBookings() {
     const bookingDate = new Date(booking.createdAt).toLocaleDateString();
 
     card.innerHTML = `
-      <div class="flight-top"><strong>${outboundAirline} ${outboundFlight}</strong><span>Booking date ${bookingDate}</span></div>
+      <div class="flight-top"><strong>${outboundAirline} ${outboundFlight}</strong><span>Booking date: ${bookingDate}</span></div>
       <h5>${outboundFrom} - ${outboundTo}</h5>
       ${outboundDate ? `<p>Departure date: ${outboundDate}</p>` : ''}
       ${hasReturn ? `
@@ -958,7 +962,18 @@ el.rewardForm.addEventListener('submit', async event => {
 
 el.profileForm.addEventListener('submit', async event => {
   event.preventDefault();
-  showFeedback(el.personalizationMessage, '');
+  if (state.profileSaveInProgress) return;
+  if (!el.profileForm.reportValidity()) return;
+
+  const submitBtn = el.profileForm.querySelector('button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.textContent : '';
+  state.profileSaveInProgress = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+  }
+
+  showFeedback(el.personalizationMessage, 'Saving...');
 
   try {
     const payload = Object.fromEntries(new FormData(el.profileForm).entries());
@@ -973,6 +988,12 @@ el.profileForm.addEventListener('submit', async event => {
     showFeedback(el.personalizationMessage, 'Personalization saved.');
   } catch (error) {
     showFeedback(el.personalizationMessage, error.message, true);
+  } finally {
+    state.profileSaveInProgress = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText || 'Save personalization';
+    }
   }
 });
 

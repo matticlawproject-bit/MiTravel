@@ -349,6 +349,55 @@ function listSearchHistoryForUser(userId) {
   });
 }
 
+function levenshteinDistance(a, b) {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (left === right) return 0;
+  if (!left.length) return right.length;
+  if (!right.length) return left.length;
+
+  const prev = Array.from({ length: right.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const tmp = prev[j];
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      prev[j] = Math.min(
+        prev[j] + 1,
+        prev[j - 1] + 1,
+        diagonal + cost
+      );
+      diagonal = tmp;
+    }
+  }
+  return prev[right.length];
+}
+
+function fuzzyKeywordMatch(token, keyword) {
+  const normalizedToken = String(token || '').toLowerCase().replace(/[^a-z]/g, '');
+  const normalizedKeyword = String(keyword || '').toLowerCase();
+  if (!normalizedToken || !normalizedKeyword) return false;
+  if (normalizedToken === normalizedKeyword) return true;
+  return levenshteinDistance(normalizedToken, normalizedKeyword) <= 1;
+}
+
+function approximateAliasMatch(cleanValue, alias) {
+  const normalizedValue = String(cleanValue || '').trim().toLowerCase();
+  const normalizedAlias = String(alias || '').trim().toLowerCase();
+  if (!normalizedValue || !normalizedAlias) return false;
+  if (normalizedValue === normalizedAlias) return true;
+
+  const distance = levenshteinDistance(normalizedValue, normalizedAlias);
+  if (normalizedAlias.length >= 8) {
+    return distance <= 2;
+  }
+  if (normalizedAlias.length >= 5) {
+    return distance <= 1;
+  }
+  return false;
+}
+
 function normalizeAirportFromText(text) {
   const clean = text.trim().toLowerCase().replace(/[.,!?]/g, '').trim();
   const map = {
@@ -385,6 +434,22 @@ function normalizeAirportFromText(text) {
     if (clean.includes(key)) {
       return value;
     }
+  }
+
+  let bestMatch = '';
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const [key, value] of Object.entries(map)) {
+    if (!approximateAliasMatch(clean, key)) {
+      continue;
+    }
+    const score = levenshteinDistance(clean, key);
+    if (score < bestScore) {
+      bestScore = score;
+      bestMatch = value;
+    }
+  }
+  if (bestMatch) {
+    return bestMatch;
   }
 
   return '';
@@ -431,23 +496,30 @@ function extractAiSearchParams(message) {
     .replace(/[.,!?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  const parseText = lower
+    // Common connector typos in travel prompts.
+    .replace(/\bfrm\b/g, 'from')
+    .replace(/\bfrmo\b/g, 'from')
+    .replace(/\bfom\b/g, 'from')
+    .replace(/\btto\b/g, 'to')
+    .replace(/\btoo\b/g, 'to');
 
   let fromText = '';
   let toText = '';
 
-  const fromPos = lower.indexOf(' from ');
-  const toPos = lower.lastIndexOf(' to ');
+  const fromPos = parseText.indexOf(' from ');
+  const toPos = parseText.lastIndexOf(' to ');
 
   if (fromPos !== -1 && toPos !== -1) {
     if (fromPos < toPos) {
-      const fromSegment = lower.slice(fromPos + 6, toPos).trim();
-      const tail = lower.slice(toPos + 4);
+      const fromSegment = parseText.slice(fromPos + 6, toPos).trim();
+      const tail = parseText.slice(toPos + 4);
       const toSegment = tail.split(' on ')[0].trim();
       fromText = fromSegment;
       toText = toSegment;
     } else {
-      const toSegment = lower.slice(toPos + 4, fromPos).trim();
-      const tail = lower.slice(fromPos + 6);
+      const toSegment = parseText.slice(toPos + 4, fromPos).trim();
+      const tail = parseText.slice(fromPos + 6);
       const fromSegment = tail.split(' on ')[0].trim();
       toText = toSegment;
       fromText = fromSegment;
@@ -455,16 +527,78 @@ function extractAiSearchParams(message) {
   }
 
   if (!fromText || !toText) {
-    const routeMatch = lower.match(/\b([a-z]{3})\s*(?:-|to)\s*([a-z]{3})\b/);
+    const routeMatch = parseText.match(/\b([a-z]{3})\s*(?:-|to)\s*([a-z]{3})\b/);
     if (routeMatch) {
       fromText = routeMatch[1];
       toText = routeMatch[2];
     }
   }
 
-  const isoDates = [...lower.matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)].map(m => m[1]);
-  const slashDates = [...lower.matchAll(/\b(\d{1,2})[\/-](\d{1,2})[\/-](20\d{2})\b/g)];
-  const monthDayMatches = [...lower.matchAll(/(?:on|back on|return on|returning on|coming back on)\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+([a-z]+)/g)];
+  if (!fromText || !toText) {
+    const tokens = parseText.split(/\s+/).filter(Boolean);
+    const fromLikeIdx = tokens.findIndex(token => fuzzyKeywordMatch(token, 'from'));
+    let toLikeIdx = tokens.findIndex((token, idx) => idx > fromLikeIdx && fuzzyKeywordMatch(token, 'to'));
+    const stopTerms = new Set([
+      'on', 'for', 'at', 'in', 'by', 'tomorrow', 'today', 'return', 'back', 'round', 'trip', 'with', 'and', 'cabin', 'class'
+    ]);
+
+    // Recover "from frankfurtto nice" style typos where "to" is attached.
+    if (fromLikeIdx !== -1 && toLikeIdx === -1) {
+      for (let i = fromLikeIdx + 1; i < tokens.length; i += 1) {
+        const token = tokens[i];
+        if (token.length > 4 && token.endsWith('to')) {
+          const left = token.slice(0, -2);
+          if (left.length >= 3) {
+            tokens[i] = left;
+            tokens.splice(i + 1, 0, 'to');
+            toLikeIdx = i + 1;
+            break;
+          }
+        }
+      }
+    }
+
+    if (fromLikeIdx !== -1 && toLikeIdx !== -1 && toLikeIdx > fromLikeIdx + 1) {
+      const rawFrom = tokens.slice(fromLikeIdx + 1, toLikeIdx).join(' ').trim();
+      const rawToTokens = [];
+      for (const token of tokens.slice(toLikeIdx + 1)) {
+        if (stopTerms.has(token)) break;
+        rawToTokens.push(token);
+      }
+      const rawTo = rawToTokens.join(' ').trim();
+      if (rawFrom && rawTo) {
+        fromText = rawFrom;
+        toText = rawTo;
+      }
+    } else {
+      const toOnlyIdx = tokens.findIndex(token => fuzzyKeywordMatch(token, 'to'));
+      if (toOnlyIdx > 0 && toOnlyIdx < tokens.length - 1) {
+        const rawFromTokens = [];
+        for (const token of tokens.slice(0, toOnlyIdx)) {
+          if (stopTerms.has(token)) {
+            rawFromTokens.length = 0;
+            continue;
+          }
+          rawFromTokens.push(token);
+        }
+        const rawToTokens = [];
+        for (const token of tokens.slice(toOnlyIdx + 1)) {
+          if (stopTerms.has(token)) break;
+          rawToTokens.push(token);
+        }
+        const rawFrom = rawFromTokens.join(' ').trim();
+        const rawTo = rawToTokens.join(' ').trim();
+        if (rawFrom && rawTo) {
+          fromText = rawFrom;
+          toText = rawTo;
+        }
+      }
+    }
+  }
+
+  const isoDates = [...parseText.matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)].map(m => m[1]);
+  const slashDates = [...parseText.matchAll(/\b(\d{1,2})[\/-](\d{1,2})[\/-](20\d{2})\b/g)];
+  const monthDayMatches = [...parseText.matchAll(/(?:on|back on|return on|returning on|coming back on)\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+([a-z]+)/g)];
   let date = '';
   let returnDate = '';
 
@@ -494,23 +628,23 @@ function extractAiSearchParams(message) {
   }
 
   if (!returnDate) {
-    const returnSpecific = lower.match(/(?:back|return|returning|coming back)\s+(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+([a-z]+)/);
+    const returnSpecific = parseText.match(/(?:back|return|returning|coming back)\s+(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+([a-z]+)/);
     if (returnSpecific) {
       returnDate = parseMonthDayToIso(returnSpecific[1], returnSpecific[2]);
     }
   }
 
-  if (!date && lower.includes('tomorrow')) {
+  if (!date && parseText.includes('tomorrow')) {
     const now = new Date();
     now.setDate(now.getDate() + 1);
     date = now.toISOString().slice(0, 10);
   }
 
-  if (!date && lower.includes('today')) {
+  if (!date && parseText.includes('today')) {
     date = new Date().toISOString().slice(0, 10);
   }
 
-  if (!returnDate && /(?:round trip|return|back)/.test(lower) && date) {
+  if (!returnDate && /(?:round trip|return|back)/.test(parseText) && date) {
     const outbound = new Date(`${date}T00:00:00Z`);
     outbound.setUTCDate(outbound.getUTCDate() + 7);
     returnDate = outbound.toISOString().slice(0, 10);
@@ -653,6 +787,25 @@ function mapCabinToDuffel(cabin) {
   return '';
 }
 
+function normalizePreferences(preferences) {
+  if (!Array.isArray(preferences)) return [];
+  const deduped = new Set();
+  for (const pref of preferences) {
+    const value = String(pref || '').trim();
+    if (value) deduped.add(value);
+  }
+  return [...deduped];
+}
+
+function mapPreferredCabinFromPreferences(preferences) {
+  const normalized = normalizePreferences(preferences).map(v => v.toLowerCase());
+  if (normalized.includes('first')) return 'first';
+  if (normalized.includes('business')) return 'business';
+  if (normalized.includes('premium eco') || normalized.includes('premium economy')) return 'premium_economy';
+  if (normalized.includes('eco') || normalized.includes('economy')) return 'economy';
+  return '';
+}
+
 function formatTimeFromIso(iso) {
   if (!iso || !iso.includes('T')) return '';
   return iso.split('T')[1].slice(0, 5);
@@ -751,7 +904,8 @@ async function searchFlightsWithDuffel(payload) {
   const to = (payload.to || '').trim().toUpperCase();
   const date = (payload.date || '').trim();
   const returnDate = (payload.returnDate || '').trim();
-  const cabin = mapCabinToDuffel(payload.cabin);
+  const preferences = normalizePreferences(payload.preferences);
+  const cabin = mapCabinToDuffel(payload.cabin) || mapPreferredCabinFromPreferences(preferences);
 
   if (!from || !to || !date) {
     return { error: 'Duffel search requires from, to and date.' };
@@ -785,7 +939,8 @@ async function searchFlightsWithDuffel(payload) {
       headers: {
         Authorization: `Bearer ${DUFFEL_ACCESS_TOKEN}`,
         'Duffel-Version': DUFFEL_VERSION,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(preferences.length ? { 'X-MiTravel-Preferences': preferences.join(', ') } : {})
       },
       body: JSON.stringify({
         data: {
@@ -1541,7 +1696,11 @@ async function handleApi(req, res, pathname) {
     if (!user) return;
 
     const body = await parseBody(req);
-    const result = await searchFlights(body, 'duffel_api');
+    const finalPayload = {
+      ...body,
+      preferences: Array.isArray(body.preferences) ? body.preferences : (Array.isArray(user.preferences) ? user.preferences : [])
+    };
+    const result = await searchFlights(finalPayload, 'duffel_api');
 
     if (result.error) {
       sendJson(res, 400, { error: result.error });
@@ -1566,7 +1725,8 @@ async function handleApi(req, res, pathname) {
       to: parsed.to,
       date: parsed.date || defaultDate,
       returnDate: parsed.returnDate || '',
-      cabin: ''
+      cabin: '',
+      preferences: Array.isArray(body.preferences) ? body.preferences : (Array.isArray(user.preferences) ? user.preferences : [])
     };
     const autoDateUsed = !parsed.date;
 
