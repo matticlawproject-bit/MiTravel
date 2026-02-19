@@ -1,0 +1,19 @@
+[
+  {
+    "id": "5850cf6d-5e4a-4602-b940-296c6afa1f28",
+    "userId": "30562248-612b-4757-adfe-1c6c9838c3b1",
+    "rewardId": "94f140c3-7dd7-4977-a25d-ea809948914f",
+    "programName": "Miles & More",
+    "loginEncrypted": {
+      "iv": "c3f3706b1b604ad07a822dcd",
+      "tag": "96dec2946254ef4742e72b446aad1617",
+      "ciphertext": "2439f333157bc6b2057230e30ec6"
+    },
+    "passwordEncrypted": {
+      "iv": "ddf8f11936d03059f38760e0",
+      "tag": "54f67ea7a17bd27d2c22248230432045",
+      "ciphertext": "2bb3227c3daee625"
+    },
+    "createdAt": "2026-02-19T18:27:24.889Z"
+  }
+]

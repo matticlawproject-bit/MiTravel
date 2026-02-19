@@ -16,5 +16,14 @@
     "tier": "",
     "memberId": "",
     "createdAt": "2026-02-19T17:27:11.775Z"
+  },
+  {
+    "id": "94f140c3-7dd7-4977-a25d-ea809948914f",
+    "userId": "30562248-612b-4757-adfe-1c6c9838c3b1",
+    "programName": "Miles & More",
+    "points": 150000,
+    "tier": "Senator",
+    "memberLoginMasked": "to***@gmail.com",
+    "createdAt": "2026-02-19T18:27:24.889Z"
   }
 ]

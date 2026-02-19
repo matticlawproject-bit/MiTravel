@@ -225,6 +225,10 @@ input {
   margin-top: 14px;
 }
 
+.discover-grid.discover-grid-unlocked {
+  grid-template-columns: 1fr;
+}
+
 .gradient-card {
   border-radius: 20px;
   padding: 20px;
@@ -238,6 +242,18 @@ input {
   background: linear-gradient(132deg, #4142f7, #c23ff1);
 }
 
+.discover-grid.discover-grid-unlocked .search-card {
+  min-height: 180px;
+  position: relative;
+  padding-right: 220px;
+}
+
+.discover-grid.discover-grid-unlocked .reco-card {
+  background: linear-gradient(132deg, #005169, #017f9b, #00a6ba);
+  position: relative;
+  padding-right: 250px;
+}
+
 .gradient-card h3 {
   margin: 0 0 8px;
   font-size: 30px;
@@ -247,6 +263,25 @@ input {
   margin: 0;
   max-width: 320px;
   color: rgba(255, 255, 255, 0.95);
+}
+
+#discoverRecoMeta {
+  margin-top: 10px;
+  max-width: none;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.discover-grid.discover-grid-unlocked .search-card p,
+.discover-grid.discover-grid-unlocked #discoverRecoText {
+  white-space: nowrap;
+}
+
+#discoverSearchBtn,
+#discoverRecoBtn {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .title-row {
@@ -304,6 +339,17 @@ input {
 
 .form-stack.compact {
   gap: 10px;
+}
+
+.payment-method-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.payment-method-picker .ghost-btn.active {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: linear-gradient(120deg, rgba(88, 126, 231, 0.46), rgba(73, 201, 191, 0.35));
 }
 
 .field {
@@ -762,6 +808,10 @@ input {
 
 #routePersonalization .stack-row > * {
   min-width: 0;
+}
+
+#routePersonalization .payment-section .title-row {
+  margin-bottom: 10px;
 }
 
 .chip-row {

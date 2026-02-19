@@ -89,17 +89,18 @@
             <p>Welcome to Mi Travel</p>
           </div>
 
-          <div class="discover-grid">
-            <article class="gradient-card search-card">
+          <div id="discoverGrid" class="discover-grid">
+            <article id="discoverSearchCard" class="gradient-card search-card">
               <h3>AI Search</h3>
               <p>Go to our AI chat and get reward flight options instantly.</p>
-              <button class="pill-btn" data-route-jump="search" type="button">Search</button>
+              <button id="discoverSearchBtn" class="pill-btn" data-route-jump="search" type="button">Search</button>
             </article>
 
-            <article class="gradient-card reco-card">
-              <h3>Recommendation</h3>
-              <p>Add your frequent flyer details to unlock smarter suggestions.</p>
-              <button class="pill-btn" data-route-jump="personalization" type="button">Add</button>
+            <article id="discoverRecoCard" class="gradient-card reco-card">
+              <h3 id="discoverRecoTitle">Recommendation</h3>
+              <p id="discoverRecoText">Add your frequent flyer details to unlock smarter suggestions.</p>
+              <p id="discoverRecoMeta" class="muted"></p>
+              <button id="discoverRecoBtn" class="pill-btn" type="button">Add</button>
             </article>
           </div>
         </article>
@@ -254,16 +255,36 @@
           <h2>Payment</h2>
           <section class="panel glass">
             <form id="paymentForm" class="form-stack">
-              <label class="field filled"><span>Card number</span><input name="cardNumber" type="text" required /></label>
-              <label class="field filled"><span>Cardholder name</span><input name="cardholderName" type="text" required /></label>
-              <div class="mini-grid">
-                <label class="field filled"><span>CVV</span><input name="cvv" type="text" required /></label>
-                <label class="field filled"><span>EXP</span><input name="exp" type="text" placeholder="MM/YY" required /></label>
+              <div id="paymentMethodPicker" class="payment-method-picker">
+                <button type="button" class="ghost-btn active" data-pay-method="card">Credit card</button>
+                <button type="button" class="ghost-btn" data-pay-method="paypal">PayPal</button>
+                <button type="button" class="ghost-btn" data-pay-method="apple_pay">Apple Pay</button>
               </div>
-              <label class="field outlined"><span>Country or region</span><input name="country" type="text" required /></label>
-              <label class="field filled"><span>Street address</span><input name="address" type="text" /></label>
-              <label class="field filled"><span>ZIP code</span><input name="zip" type="text" /></label>
-              <button type="submit" class="primary-btn">Save payment method</button>
+              <input id="paymentMethodInput" type="hidden" name="method" value="card" />
+
+              <div id="cardFields" class="form-stack compact">
+                <label class="field filled"><span>Card number</span><input name="cardNumber" type="text" required /></label>
+                <label class="field filled"><span>Cardholder name</span><input name="cardholderName" type="text" required /></label>
+                <div class="mini-grid">
+                  <label class="field filled"><span>CVV</span><input name="cvv" type="text" required /></label>
+                  <label class="field filled"><span>EXP</span><input name="exp" type="text" placeholder="MM/YY" required /></label>
+                </div>
+                <label class="field outlined"><span>Country or region</span><input name="country" type="text" required /></label>
+                <label class="field filled"><span>Street address</span><input name="address" type="text" /></label>
+                <label class="field filled"><span>ZIP code</span><input name="zip" type="text" /></label>
+              </div>
+
+              <div id="paypalFields" class="form-stack compact hidden">
+                <label class="field filled"><span>PayPal email</span><input name="paypalEmail" type="email" autocomplete="off" /></label>
+                <label class="field outlined"><span>PayPal password</span><input name="paypalPassword" type="password" autocomplete="new-password" /></label>
+              </div>
+
+              <div id="applePayFields" class="form-stack compact hidden">
+                <label class="field filled"><span>Apple ID email</span><input name="applePayEmail" type="email" autocomplete="off" /></label>
+                <label class="field outlined"><span>Apple ID password</span><input name="applePayPassword" type="password" autocomplete="new-password" /></label>
+              </div>
+
+              <button id="paymentSubmitBtn" type="submit" class="primary-btn">Save payment method</button>
             </form>
             <p id="paymentMessage" class="feedback"></p>
           </section>

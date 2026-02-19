@@ -8,6 +8,7 @@ const HOST = '127.0.0.1';
 const PORT = process.env.PORT || 3000;
 const DUFFEL_BASE_URL = process.env.DUFFEL_BASE_URL || 'https://api.duffel.com';
 const DUFFEL_VERSION = process.env.DUFFEL_VERSION || 'v2';
+const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
@@ -271,11 +272,21 @@ function cardBrandFromNumber(number) {
 }
 
 function serializePayment(p) {
+  const method = String(p.method || 'card').trim().toLowerCase();
+  const brand = method === 'paypal' ? 'PayPal' : (method === 'apple_pay' ? 'Apple Pay' : p.brand);
+  const displayLabel = method === 'paypal'
+    ? String(p.paypalEmailMasked || '').trim()
+    : (method === 'apple_pay'
+      ? String(p.applePayReference || 'Wallet linked').trim()
+      : maskCardLast4(p.last4));
   return {
     id: p.id,
-    brand: p.brand,
+    method,
+    methodLabel: method === 'card' ? 'Card' : (method === 'paypal' ? 'PayPal' : 'Apple Pay'),
+    brand,
     cardholderName: p.cardholderName,
-    last4Masked: maskCardLast4(p.last4),
+    last4Masked: method === 'card' ? maskCardLast4(p.last4) : '',
+    displayLabel,
     exp: p.exp,
     country: p.country,
     address: p.address,
@@ -316,6 +327,22 @@ function encryptVaultValue(value, key) {
     tag: tag.toString('hex'),
     ciphertext: ciphertext.toString('hex')
   };
+}
+
+function decryptVaultValue(payload, key) {
+  if (!payload || typeof payload !== 'object') return '';
+  try {
+    const iv = Buffer.from(String(payload.iv || ''), 'hex');
+    const tag = Buffer.from(String(payload.tag || ''), 'hex');
+    const ciphertext = Buffer.from(String(payload.ciphertext || ''), 'hex');
+    if (!iv.length || !tag.length || !ciphertext.length) return '';
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    const clear = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+    return clear.trim();
+  } catch {
+    return '';
+  }
 }
 
 function maskLogin(value) {
@@ -407,6 +434,215 @@ function resolveRewardSnapshot(programName, memberId, memberPassword) {
   const points = 1000 + (seed.readUInt32BE(0) % 250000);
   const tier = tiers[seed.readUInt16BE(4) % tiers.length];
   return { points, tier };
+}
+
+async function connectPayPalAccount({ email, password }) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const cleanPassword = String(password || '').trim();
+  if (!cleanEmail) {
+    return { error: 'PayPal email is required.' };
+  }
+  if (!cleanPassword) {
+    return { error: 'PayPal password is required.' };
+  }
+
+  const clientId = String(process.env.PAYPAL_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.PAYPAL_CLIENT_SECRET || '').trim();
+  const apiEnabled = Boolean(clientId && clientSecret);
+
+  if (apiEnabled) {
+    try {
+      const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${basic}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials'
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        return { error: `PayPal API connection failed (${response.status}). ${detail.slice(0, 140)}` };
+      }
+    } catch (error) {
+      return { error: `PayPal API connection failed. ${error.message || 'Unknown error.'}` };
+    }
+  }
+
+  const accountFingerprint = crypto
+    .createHash('sha256')
+    .update(`${cleanEmail}|${cleanPassword}`)
+    .digest('hex')
+    .slice(0, 18)
+    .toUpperCase();
+
+  const redirectUrl = apiEnabled
+    ? `https://www.sandbox.paypal.com/signin?country.x=US&locale.x=en_US`
+    : `https://www.paypal.com/signin`;
+
+  return {
+    providerId: `PP-${accountFingerprint}`,
+    emailMasked: maskLogin(cleanEmail),
+    apiMode: apiEnabled ? 'live' : 'mock',
+    redirectUrl
+  };
+}
+
+async function connectApplePayAccount({ email, password }) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const cleanPassword = String(password || '').trim();
+  if (!cleanEmail) {
+    return { error: 'Apple ID email is required.' };
+  }
+  if (!cleanPassword) {
+    return { error: 'Apple ID password is required.' };
+  }
+
+  const merchantId = String(process.env.APPLE_PAY_MERCHANT_ID || '').trim();
+  const mode = merchantId ? 'merchant' : 'mock';
+  const ref = crypto
+    .createHash('sha256')
+    .update(`${cleanEmail}|${cleanPassword}|${merchantId || 'mock'}`)
+    .digest('hex')
+    .slice(0, 14)
+    .toUpperCase();
+
+  return {
+    reference: `AP-${ref}`,
+    emailMasked: maskLogin(cleanEmail),
+    mode,
+    redirectUrl: 'https://appleid.apple.com/sign-in'
+  };
+}
+
+function mapProgramToAirlineIata(programName) {
+  const key = String(programName || '').trim().toLowerCase();
+  const map = {
+    'miles & more': 'LH',
+    'ana mileage club': 'NH',
+    'flying blue': 'AF',
+    'executive club': 'BA',
+    'iberia plus': 'IB',
+    'krisflyer': 'SQ',
+    'mileageplus': 'UA',
+    'skymiles': 'DL',
+    'privilege club': 'QR',
+    'jal mileage bank': 'JL'
+  };
+  return map[key] || '';
+}
+
+function buildDuffelLoyaltyAccountsForUser(userId) {
+  const rewards = readJson(FILES.rewards).filter(r => r.userId === userId);
+  if (!rewards.length) return [];
+
+  const vaultByRewardId = new Map();
+  const key = resolveLoyaltyVaultKey();
+  for (const entry of readJson(FILES.loyaltyVault)) {
+    if (!entry || entry.userId !== userId || !entry.rewardId) continue;
+    const login = decryptVaultValue(entry.loginEncrypted, key);
+    if (login) {
+      vaultByRewardId.set(entry.rewardId, login);
+    }
+  }
+
+  const dedup = new Set();
+  const accounts = [];
+  for (const reward of rewards) {
+    const airlineCode = mapProgramToAirlineIata(reward.programName);
+    if (!airlineCode) continue;
+    const accountNumber = String(
+      vaultByRewardId.get(reward.id)
+      || reward.memberId
+      || reward.memberLogin
+      || ''
+    ).trim();
+    if (!accountNumber) continue;
+    const fingerprint = `${airlineCode}|${accountNumber}`;
+    if (dedup.has(fingerprint)) continue;
+    dedup.add(fingerprint);
+    accounts.push({
+      airline_iata_code: airlineCode,
+      account_number: accountNumber
+    });
+  }
+  return accounts;
+}
+
+function airportDisplayName(iata) {
+  const code = String(iata || '').trim().toUpperCase();
+  const map = {
+    FRA: 'Frankfurt',
+    JFK: 'New York',
+    LHR: 'London',
+    CDG: 'Paris',
+    NCE: 'Nice',
+    DXB: 'Dubai',
+    BKK: 'Bangkok',
+    SFO: 'San Francisco'
+  };
+  return map[code] || code;
+}
+
+function buildTrendingDestinationSnapshot() {
+  const history = readJson(FILES.searchHistory);
+  const flights = readJson(FILES.flights);
+  const today = new Date().toISOString().slice(0, 10);
+  const routeCounts = new Map();
+
+  for (const session of history) {
+    const updatedAt = String(session.updatedAt || session.createdAt || '');
+    if (!updatedAt.startsWith(today)) continue;
+    const latestResults = Array.isArray(session.latestResults) ? session.latestResults : [];
+    const top = latestResults[0];
+    if (!top) continue;
+    const from = String(top.from || top.outboundFrom || '').trim().toUpperCase();
+    const to = String(top.to || top.outboundTo || '').trim().toUpperCase();
+    if (!from || !to) continue;
+    const route = `${from}-${to}`;
+    routeCounts.set(route, Number(routeCounts.get(route) || 0) + 1);
+  }
+
+  let bestRoute = '';
+  let bestCount = 0;
+  for (const [route, count] of routeCounts.entries()) {
+    if (count > bestCount) {
+      bestRoute = route;
+      bestCount = count;
+    }
+  }
+
+  if (!bestRoute) {
+    const fallback = flights[new Date().getUTCDate() % Math.max(flights.length, 1)] || flights[0];
+    if (!fallback) {
+      return null;
+    }
+    bestRoute = `${String(fallback.from || '').toUpperCase()}-${String(fallback.to || '').toUpperCase()}`;
+    bestCount = 1;
+  }
+
+  const [from, to] = bestRoute.split('-');
+  const routeFlight = flights.find(f => String(f.from || '').toUpperCase() === from && String(f.to || '').toUpperCase() === to);
+
+  return {
+    date: today,
+    from,
+    to,
+    fromName: airportDisplayName(from),
+    toName: airportDisplayName(to),
+    searches: bestCount,
+    sample: routeFlight
+      ? {
+        airline: routeFlight.airline,
+        flightNumber: routeFlight.flightNumber,
+        cabin: routeFlight.cabin,
+        cashPrice: routeFlight.cashPrice,
+        currency: routeFlight.currency || 'EUR',
+        date: routeFlight.date
+      }
+      : null
+  };
 }
 
 function sanitizeSearchMessage(entry) {
@@ -1033,6 +1269,14 @@ async function searchFlightsWithDuffel(payload) {
   const returnDate = (payload.returnDate || '').trim();
   const preferences = normalizePreferences(payload.preferences);
   const cabin = mapCabinToDuffel(payload.cabin) || mapPreferredCabinFromPreferences(preferences);
+  const loyaltyAccounts = Array.isArray(payload.loyaltyAccounts)
+    ? payload.loyaltyAccounts
+      .map(a => ({
+        airline_iata_code: String(a?.airline_iata_code || '').trim().toUpperCase(),
+        account_number: String(a?.account_number || '').trim()
+      }))
+      .filter(a => /^[A-Z0-9]{2}$/.test(a.airline_iata_code) && Boolean(a.account_number))
+    : [];
 
   if (!from || !to || !date) {
     return { error: 'Duffel search requires from, to and date.' };
@@ -1072,7 +1316,12 @@ async function searchFlightsWithDuffel(payload) {
       body: JSON.stringify({
         data: {
           slices,
-          passengers: [{ type: 'adult' }],
+          passengers: [
+            {
+              type: 'adult',
+              ...(loyaltyAccounts.length ? { loyalty_programme_accounts: loyaltyAccounts } : {})
+            }
+          ],
           ...(cabin ? { cabin_class: cabin } : {})
         }
       }),
@@ -1560,39 +1809,106 @@ async function handleApi(req, res, pathname) {
     if (!user) return;
 
     const body = await parseBody(req);
-    const cardNumber = String(body.cardNumber || '').replace(/\s+/g, '');
-    const cardholderName = String(body.cardholderName || '').trim();
-    const cvv = String(body.cvv || '').trim();
-    const exp = String(body.exp || '').trim();
-    const country = String(body.country || '').trim();
-    const address = String(body.address || '').trim();
-    const zip = String(body.zip || '').trim();
-
-    if (cardNumber.length < 12 || !cardholderName || !cvv || !exp || !country) {
-      sendJson(res, 400, { error: 'Card number, cardholder name, CVV, EXP and country are required' });
+    const method = String(body.method || 'card').trim().toLowerCase();
+    if (!['card', 'paypal', 'apple_pay'].includes(method)) {
+      sendJson(res, 400, { error: 'Unsupported payment method' });
       return;
     }
 
     const payments = readJson(FILES.payments);
     const hasPrimary = payments.some(p => p.userId === user.id && p.primary);
+    let record = null;
 
-    const record = {
-      id: crypto.randomUUID(),
-      userId: user.id,
-      brand: cardBrandFromNumber(cardNumber),
-      cardholderName,
-      last4: cardNumber.slice(-4),
-      exp,
-      country,
-      address,
-      zip,
-      primary: !hasPrimary,
-      createdAt: new Date().toISOString()
-    };
+    if (method === 'card') {
+      const cardNumber = String(body.cardNumber || '').replace(/\s+/g, '');
+      const cardholderName = String(body.cardholderName || '').trim();
+      const cvv = String(body.cvv || '').trim();
+      const exp = String(body.exp || '').trim();
+      const country = String(body.country || '').trim();
+      const address = String(body.address || '').trim();
+      const zip = String(body.zip || '').trim();
+
+      if (cardNumber.length < 12 || !cardholderName || !cvv || !exp || !country) {
+        sendJson(res, 400, { error: 'Card number, cardholder name, CVV, EXP and country are required' });
+        return;
+      }
+
+      record = {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        method: 'card',
+        brand: cardBrandFromNumber(cardNumber),
+        cardholderName,
+        last4: cardNumber.slice(-4),
+        exp,
+        country,
+        address,
+        zip,
+        primary: !hasPrimary,
+        createdAt: new Date().toISOString()
+      };
+    } else if (method === 'paypal') {
+      const connected = await connectPayPalAccount({
+        email: body.paypalEmail,
+        password: body.paypalPassword
+      });
+      if (connected.error) {
+        sendJson(res, 400, { error: connected.error });
+        return;
+      }
+      record = {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        method: 'paypal',
+        brand: 'PayPal',
+        cardholderName: '',
+        last4: '',
+        exp: '',
+        country: '',
+        address: '',
+        zip: '',
+        paypalEmailMasked: connected.emailMasked,
+        paypalPayerId: connected.providerId,
+        paypalApiMode: connected.apiMode,
+        primary: !hasPrimary,
+        createdAt: new Date().toISOString()
+      };
+      record.providerRedirectUrl = connected.redirectUrl;
+    } else {
+      const linked = await connectApplePayAccount({
+        email: body.applePayEmail,
+        password: body.applePayPassword
+      });
+      if (linked.error) {
+        sendJson(res, 400, { error: linked.error });
+        return;
+      }
+      record = {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        method: 'apple_pay',
+        brand: 'Apple Pay',
+        cardholderName: '',
+        last4: '',
+        exp: '',
+        country: '',
+        address: '',
+        zip: '',
+        applePayReference: linked.reference,
+        applePayEmailMasked: linked.emailMasked,
+        applePayMode: linked.mode,
+        primary: !hasPrimary,
+        createdAt: new Date().toISOString()
+      };
+      record.providerRedirectUrl = linked.redirectUrl;
+    }
 
     payments.push(record);
     writeJson(FILES.payments, payments);
-    sendJson(res, 201, { payment: serializePayment(record) });
+    sendJson(res, 201, {
+      payment: serializePayment(record),
+      ...(record.providerRedirectUrl ? { redirectUrl: record.providerRedirectUrl } : {})
+    });
     return;
   }
 
@@ -1656,6 +1972,15 @@ async function handleApi(req, res, pathname) {
 
     const sessions = listSearchHistoryForUser(user.id);
     sendJson(res, 200, { sessions });
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/discover/trending') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+
+    const trending = buildTrendingDestinationSnapshot();
+    sendJson(res, 200, { trending });
     return;
   }
 
@@ -1821,11 +2146,7 @@ async function handleApi(req, res, pathname) {
       flightId: flight.id,
       offerId: offerId || flight.offerId || '',
       flight,
-      payment: {
-        id: payment.id,
-        brand: payment.brand,
-        last4Masked: maskCardLast4(payment.last4)
-      },
+      payment: serializePayment(payment),
       status: duffelOrder ? duffelOrder.paymentStatus : 'CONFIRMED',
       duffelOrderId: duffelOrder ? duffelOrder.orderId : '',
       bookingReference: duffelOrder ? duffelOrder.bookingReference : '',
@@ -1847,9 +2168,13 @@ async function handleApi(req, res, pathname) {
     if (!user) return;
 
     const body = await parseBody(req);
+    const profileLoyaltyAccounts = buildDuffelLoyaltyAccountsForUser(user.id);
     const finalPayload = {
       ...body,
-      preferences: Array.isArray(body.preferences) ? body.preferences : (Array.isArray(user.preferences) ? user.preferences : [])
+      preferences: Array.isArray(body.preferences) ? body.preferences : (Array.isArray(user.preferences) ? user.preferences : []),
+      loyaltyAccounts: Array.isArray(body.loyaltyAccounts) && body.loyaltyAccounts.length
+        ? body.loyaltyAccounts
+        : profileLoyaltyAccounts
     };
     const result = await searchFlights(finalPayload, 'duffel_api');
 
@@ -1870,6 +2195,7 @@ async function handleApi(req, res, pathname) {
     const agent = decideSearchProvider(body.message || '');
     const parsed = extractAiSearchParams(body.message || '');
     const fallbackFrom = user.homeAirport || '';
+    const profileLoyaltyAccounts = buildDuffelLoyaltyAccountsForUser(user.id);
     const defaultDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const finalPayload = {
       from: parsed.from || fallbackFrom,
@@ -1877,7 +2203,8 @@ async function handleApi(req, res, pathname) {
       date: parsed.date || defaultDate,
       returnDate: parsed.returnDate || '',
       cabin: '',
-      preferences: Array.isArray(body.preferences) ? body.preferences : (Array.isArray(user.preferences) ? user.preferences : [])
+      preferences: Array.isArray(body.preferences) ? body.preferences : (Array.isArray(user.preferences) ? user.preferences : []),
+      loyaltyAccounts: profileLoyaltyAccounts
     };
     const autoDateUsed = !parsed.date;
 

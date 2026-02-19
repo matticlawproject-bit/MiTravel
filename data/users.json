@@ -23,5 +23,31 @@
     "title": "Mr",
     "gender": "M",
     "bornOn": "1981-02-17"
+  },
+  {
+    "id": "30562248-612b-4757-adfe-1c6c9838c3b1",
+    "name": "Toto Jones",
+    "email": "toto@gmail.com",
+    "passwordSalt": "1b1935c22ffb84699390e60be3e56a9c",
+    "passwordHash": "5b5ecaf4f6d6bf096b48059df3813c8c5e26528d6ab574934e236553c5cc66fe81b132085ab5bb2e9e545936c2a9112232b58ea3a6723ab1d0d56ab2a5a81f01",
+    "firstName": "Toto",
+    "middleName": "",
+    "lastName": "Jones",
+    "homeAirport": "NYC",
+    "address": "MAin street",
+    "passportNumber": "12kj454566",
+    "passportExpiry": "2036-09-10",
+    "passportCountry": "US",
+    "title": "Mr",
+    "gender": "M",
+    "bornOn": "1981-04-17",
+    "phone": "",
+    "language": "English",
+    "twoFactorEnabled": false,
+    "preferences": [
+      "Business",
+      "First"
+    ],
+    "createdAt": "2026-02-19T18:25:47.265Z"
   }
 ]

@@ -10,8 +10,10 @@ const state = {
   selectedPreferences: new Set(),
   selectedFlightId: null,
   lastSearchResults: [],
+  trendingDestination: null,
   searchInProgress: false,
   profileSaveInProgress: false,
+  paymentMethod: 'card',
   voice: {
     supported: false,
     listening: false,
@@ -58,6 +60,12 @@ const el = {
   rewardForm: document.getElementById('rewardForm'),
   profileForm: document.getElementById('profileForm'),
   paymentForm: document.getElementById('paymentForm'),
+  paymentMethodPicker: document.getElementById('paymentMethodPicker'),
+  paymentMethodInput: document.getElementById('paymentMethodInput'),
+  cardFields: document.getElementById('cardFields'),
+  paypalFields: document.getElementById('paypalFields'),
+  applePayFields: document.getElementById('applePayFields'),
+  paymentSubmitBtn: document.getElementById('paymentSubmitBtn'),
   settingsForm: document.getElementById('settingsForm'),
   aiSearchForm: document.getElementById('aiSearchForm'),
   aiMessageInput: document.getElementById('aiMessageInput'),
@@ -70,6 +78,11 @@ const el = {
   settingsMessage: document.getElementById('settingsMessage'),
   searchMessage: document.getElementById('searchMessage'),
   discoverName: document.getElementById('discoverName'),
+  discoverGrid: document.getElementById('discoverGrid'),
+  discoverRecoTitle: document.getElementById('discoverRecoTitle'),
+  discoverRecoText: document.getElementById('discoverRecoText'),
+  discoverRecoMeta: document.getElementById('discoverRecoMeta'),
+  discoverRecoBtn: document.getElementById('discoverRecoBtn'),
   rewardCards: document.getElementById('rewardCards'),
   paymentList: document.getElementById('paymentList'),
   preferenceChips: document.getElementById('preferenceChips'),
@@ -79,6 +92,67 @@ const el = {
   bookingsList: document.getElementById('bookingsList'),
   twoFactorToggle: document.getElementById('twoFactorToggle')
 };
+
+function setRequiredForSection(section, enabled) {
+  if (!section) return;
+  section.querySelectorAll('input').forEach(input => {
+    if (enabled) {
+      if (input.dataset.wasRequired === 'true') {
+        input.required = true;
+      }
+      return;
+    }
+    if (input.required) {
+      input.dataset.wasRequired = 'true';
+    }
+    input.required = false;
+  });
+}
+
+function setPaymentMethod(method) {
+  const next = ['card', 'paypal', 'apple_pay'].includes(method) ? method : 'card';
+  state.paymentMethod = next;
+  if (el.paymentMethodInput) {
+    el.paymentMethodInput.value = next;
+  }
+
+  if (el.paymentMethodPicker) {
+    el.paymentMethodPicker.querySelectorAll('button[data-pay-method]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.payMethod === next);
+    });
+  }
+
+  el.cardFields.classList.toggle('hidden', next !== 'card');
+  el.paypalFields.classList.toggle('hidden', next !== 'paypal');
+  el.applePayFields.classList.toggle('hidden', next !== 'apple_pay');
+
+  setRequiredForSection(el.cardFields, next === 'card');
+  setRequiredForSection(el.paypalFields, next === 'paypal');
+  setRequiredForSection(el.applePayFields, next === 'apple_pay');
+
+  const paypalEmailInput = el.paypalFields?.querySelector('input[name="paypalEmail"]');
+  const paypalPasswordInput = el.paypalFields?.querySelector('input[name="paypalPassword"]');
+  const appleEmailInput = el.applePayFields?.querySelector('input[name="applePayEmail"]');
+  const applePasswordInput = el.applePayFields?.querySelector('input[name="applePayPassword"]');
+  if (paypalEmailInput) {
+    paypalEmailInput.required = next === 'paypal';
+  }
+  if (paypalPasswordInput) {
+    paypalPasswordInput.required = next === 'paypal';
+  }
+  if (appleEmailInput) {
+    appleEmailInput.required = next === 'apple_pay';
+  }
+  if (applePasswordInput) {
+    applePasswordInput.required = next === 'apple_pay';
+  }
+
+  if (el.paymentSubmitBtn) {
+    el.paymentSubmitBtn.textContent = next === 'card'
+      ? 'Save payment method'
+      : (next === 'paypal' ? 'Connect PayPal' : 'Connect Apple Pay');
+  }
+}
 
 function showFeedback(node, text, isError = false) {
   node.textContent = text;
@@ -115,6 +189,32 @@ function renderShell() {
   el.appArea.classList.toggle('hidden', !loggedIn);
   el.goToAuthBtn.classList.toggle('hidden', loggedIn);
   el.logoutBtn.classList.toggle('hidden', !loggedIn);
+}
+
+function renderDiscoverRecommendation() {
+  const hasRewards = Array.isArray(state.rewards) && state.rewards.length > 0;
+  el.discoverGrid.classList.toggle('discover-grid-unlocked', hasRewards);
+
+  if (!hasRewards) {
+    el.discoverRecoTitle.textContent = 'Recommendation';
+    el.discoverRecoText.textContent = 'Add your frequent flyer details to unlock smarter suggestions.';
+    el.discoverRecoMeta.textContent = '';
+    el.discoverRecoBtn.textContent = 'Add';
+    return;
+  }
+
+  const trending = state.trendingDestination;
+  el.discoverRecoTitle.textContent = 'Trending Destination Of The Day';
+  if (trending) {
+    el.discoverRecoText.textContent = `${trending.toName} (${trending.to}) is trending today from ${trending.fromName} (${trending.from}).`;
+    el.discoverRecoMeta.textContent = trending.sample
+      ? `${trending.searches} searches today. Sample flight: ${trending.sample.airline} ${trending.sample.flightNumber}, ${trending.sample.cabin}, ${trending.sample.cashPrice} ${trending.sample.currency}.`
+      : `${trending.searches} searches today.`;
+  } else {
+    el.discoverRecoText.textContent = 'Your profile is ready. We are collecting today’s trend data.';
+    el.discoverRecoMeta.textContent = '';
+  }
+  el.discoverRecoBtn.textContent = 'Search this route';
 }
 
 function setVoiceIdle(message = '') {
@@ -381,7 +481,8 @@ async function buyFlight(flight) {
 
   await refreshBookings();
   const refText = data.booking.bookingReference ? ` Duffel reference: ${data.booking.bookingReference}.` : '';
-  addChatMessage('assistant', `Booking confirmed: ${data.booking.flight.airline} ${data.booking.flight.flightNumber}. Paid with ${data.booking.payment.brand} ${data.booking.payment.last4Masked}.${refText}`);
+  const paymentLabel = data.booking.payment.displayLabel || data.booking.payment.last4Masked || data.booking.payment.methodLabel || '';
+  addChatMessage('assistant', `Booking confirmed: ${data.booking.flight.airline} ${data.booking.flight.flightNumber}. Paid with ${data.booking.payment.brand}${paymentLabel ? ` ${paymentLabel}` : ''}.${refText}`);
   return data;
 }
 
@@ -579,7 +680,8 @@ function renderPayments() {
     row.className = 'payment-card';
 
     const info = document.createElement('div');
-    info.innerHTML = `<strong>${payment.brand}${payment.primary ? ' <span class="badge">Primary</span>' : ''}</strong><p>${payment.last4Masked}</p>`;
+    const paymentSubtitle = payment.displayLabel || payment.last4Masked || payment.methodLabel || 'Connected';
+    info.innerHTML = `<strong>${payment.brand}${payment.primary ? ' <span class="badge">Primary</span>' : ''}</strong><p>${paymentSubtitle}</p>`;
 
     const actions = document.createElement('div');
     actions.className = 'payment-actions';
@@ -652,7 +754,7 @@ function renderBookings() {
       <h5>${returnFrom} - ${returnTo}</h5>
       ${returnDate ? `<p>Departure date: ${returnDate}</p>` : ''}
       ` : ''}
-      <p>Status: ${booking.status}${referencePart}${ticketPart} | Paid with ${booking.payment.brand} ${booking.payment.last4Masked}</p>
+      <p>Status: ${booking.status}${referencePart}${ticketPart} | Paid with ${booking.payment.brand}${(booking.payment.displayLabel || booking.payment.last4Masked || booking.payment.methodLabel) ? ` ${booking.payment.displayLabel || booking.payment.last4Masked || booking.payment.methodLabel}` : ''}</p>
       <div class="flight-price"><strong>${booking.totalAmount} ${booking.flight.currency || 'EUR'}</strong></div>
     `;
     el.bookingsList.appendChild(card);
@@ -697,6 +799,7 @@ async function refreshRewards() {
   const data = await api('/api/rewards');
   state.rewards = data.rewards || [];
   renderRewardCards();
+  renderDiscoverRecommendation();
 }
 
 async function refreshPayments() {
@@ -709,6 +812,12 @@ async function refreshBookings() {
   const data = await api('/api/bookings');
   state.bookings = data.bookings || [];
   renderBookings();
+}
+
+async function refreshTrendingDestination() {
+  const data = await api('/api/discover/trending');
+  state.trendingDestination = data.trending || null;
+  renderDiscoverRecommendation();
 }
 
 function formatHistoryDate(iso) {
@@ -883,7 +992,7 @@ async function startNewSearchSession() {
 
 async function handleAuthenticatedBoot() {
   await refreshUser();
-  await Promise.all([refreshRewards(), refreshPayments(), refreshBookings(), refreshSearchHistory()]);
+  await Promise.all([refreshRewards(), refreshPayments(), refreshBookings(), refreshSearchHistory(), refreshTrendingDestination()]);
   if (state.searchHistory.length) {
     await openSearchSession(state.searchHistory[0].id, false);
   } else {
@@ -894,6 +1003,7 @@ async function handleAuthenticatedBoot() {
 }
 
 async function boot() {
+  setPaymentMethod('card');
   renderPreferenceChips();
 
   try {
@@ -923,6 +1033,31 @@ document.querySelectorAll('[data-route-jump]').forEach(btn => {
     setRoute(btn.dataset.routeJump);
   });
 });
+
+if (el.paymentMethodPicker) {
+  el.paymentMethodPicker.addEventListener('click', event => {
+    const button = event.target.closest('button[data-pay-method]');
+    if (!button) return;
+    setPaymentMethod(button.dataset.payMethod);
+  });
+}
+
+if (el.discoverRecoBtn) {
+  el.discoverRecoBtn.addEventListener('click', () => {
+    const hasRewards = Array.isArray(state.rewards) && state.rewards.length > 0;
+    if (!hasRewards) {
+      setRoute('personalization');
+      return;
+    }
+    if (state.trendingDestination) {
+      const { from, to } = state.trendingDestination;
+      el.aiMessageInput.value = `Find flights from ${from} to ${to}`;
+      setRoute('search');
+      return;
+    }
+    setRoute('search');
+  });
+}
 
 el.loginForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -1018,17 +1153,22 @@ el.profileForm.addEventListener('submit', async event => {
 el.paymentForm.addEventListener('submit', async event => {
   event.preventDefault();
   showFeedback(el.paymentMessage, '');
+  if (!el.paymentForm.reportValidity()) return;
 
   try {
     const payload = Object.fromEntries(new FormData(el.paymentForm).entries());
-    await api('/api/payments', {
+    const data = await api('/api/payments', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
 
     el.paymentForm.reset();
+    setPaymentMethod(state.paymentMethod);
     await refreshPayments();
-    showFeedback(el.paymentMessage, 'Payment method added.');
+    showFeedback(el.paymentMessage, data.redirectUrl ? 'Payment method added. Redirecting to provider...' : 'Payment method added.');
+    if (data.redirectUrl) {
+      window.open(data.redirectUrl, '_blank', 'noopener,noreferrer');
+    }
     setRoute('personalization');
   } catch (error) {
     showFeedback(el.paymentMessage, error.message, true);
