@@ -1,0 +1,8 @@
+{
+  "algorithm": "aes-256-gcm",
+  "kdf": "scrypt",
+  "salt": "b7b635e3def56e9483d68f6914ec3a7f",
+  "iv": "80655bc04ab3236a9376342e",
+  "tag": "2c370664add101c913c27f258ee8ef2b",
+  "ciphertext": "be02219d25c3a3ac4485c6dfe1977d8c248781b7b5f7da3284413ac8a7bb7bc52b302b3368eafc74fc823d85ef78c14b0b9b0067add1d9"
+}

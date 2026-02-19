@@ -1,0 +1,341 @@
+[
+  {
+    "id": "3f187b76-8cd9-44e9-a23a-61020dffbc1f",
+    "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
+    "title": "AI Search",
+    "messages": [
+      {
+        "role": "assistant",
+        "text": "I am your flight search agent. Ask me to find reward flights and then select or buy directly.",
+        "createdAt": "2026-02-19T14:47:30.991Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Frankfurt to Nice on 14th March",
+        "createdAt": "2026-02-19T14:47:44.906Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T14:47:46.910Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 8 option(s) from Duffel.",
+        "createdAt": "2026-02-19T14:47:46.911Z"
+      }
+    ],
+    "createdAt": "2026-02-19T14:47:30.987Z",
+    "updatedAt": "2026-02-19T14:47:46.913Z"
+  },
+  {
+    "id": "55dd0a74-77f6-4438-b773-933107640179",
+    "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
+    "title": "AI Search",
+    "messages": [
+      {
+        "role": "assistant",
+        "text": "I am your flight search agent. Ask me to find reward flights and then select or buy directly.",
+        "createdAt": "2026-02-19T14:47:52.888Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Frankfurt to Nice on 15th March",
+        "createdAt": "2026-02-19T14:48:06.627Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T14:48:08.882Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 8 option(s) from Duffel.",
+        "createdAt": "2026-02-19T14:48:08.883Z"
+      }
+    ],
+    "createdAt": "2026-02-19T14:47:52.883Z",
+    "updatedAt": "2026-02-19T14:48:08.889Z"
+  },
+  {
+    "id": "c2b5eb08-3717-422f-884b-3acb39c386ef",
+    "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
+    "title": "AI Search",
+    "messages": [
+      {
+        "role": "assistant",
+        "text": "I am your flight search agent. Ask me to find reward flights and then select or buy directly.",
+        "createdAt": "2026-02-19T14:57:27.524Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Frankfurt to Nice on 14th March and back on 18th March",
+        "createdAt": "2026-02-19T14:57:31.415Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T14:57:38.402Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 8 round-trip option(s) from Duffel.",
+        "createdAt": "2026-02-19T14:57:38.403Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Selected Lufthansa LH1058. Click Buy now or say \"book selected flight\".",
+        "createdAt": "2026-02-19T14:57:41.857Z"
+      },
+      {
+        "role": "user",
+        "text": "flight from Frankfurt to Nice on 14th March and back on 18th March",
+        "createdAt": "2026-02-19T15:01:52.460Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Duffel agent: Agent selected Duffel flight API strategy.",
+        "createdAt": "2026-02-19T15:01:57.212Z"
+      },
+      {
+        "role": "assistant",
+        "text": "I found 8 round-trip option(s) from Duffel.",
+        "createdAt": "2026-02-19T15:01:57.213Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Booking confirmed: British Airways BA1516. Paid with Visa **** 0000. Duffel reference: J3GPSH.",
+        "createdAt": "2026-02-19T15:02:01.183Z"
+      }
+    ],
+    "latestResults": [
+      {
+        "id": "duffel_off_0000B3TzDDBlwr1lVlSgCZ",
+        "offerId": "off_0000B3TzDDBlwr1lVlSgCZ",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "British Airways",
+        "outboundFlightNumber": "BA1516",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "British Airways",
+        "returnFlightNumber": "BA1516",
+        "airline": "British Airways",
+        "flightNumber": "BA1516",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 78.28,
+        "currency": "GBP",
+        "depTime": "10:03",
+        "arrTime": "11:35",
+        "returnDepTime": "13:09",
+        "returnArrTime": "14:41"
+      },
+      {
+        "id": "duffel_off_0000B3TzDDBlwr1lVlSgCb",
+        "offerId": "off_0000B3TzDDBlwr1lVlSgCb",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "Duffel Airways",
+        "outboundFlightNumber": "ZZ1829",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "Duffel Airways",
+        "returnFlightNumber": "ZZ1829",
+        "airline": "Duffel Airways",
+        "flightNumber": "ZZ1829",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 79.42,
+        "currency": "GBP",
+        "depTime": "10:03",
+        "arrTime": "11:35",
+        "returnDepTime": "13:09",
+        "returnArrTime": "14:41"
+      },
+      {
+        "id": "duffel_off_0000B3TzDDBlwr1lVlSgD7",
+        "offerId": "off_0000B3TzDDBlwr1lVlSgD7",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "Iberia",
+        "outboundFlightNumber": "IB3167",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "Iberia",
+        "returnFlightNumber": "IB3167",
+        "airline": "Iberia",
+        "flightNumber": "IB3167",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 81.52,
+        "currency": "GBP",
+        "depTime": "10:03",
+        "arrTime": "11:35",
+        "returnDepTime": "13:09",
+        "returnArrTime": "14:41"
+      },
+      {
+        "id": "duffel_off_0000B3TzDDC7vXJLWrcxkh",
+        "offerId": "off_0000B3TzDDC7vXJLWrcxkh",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "Duffel Airways",
+        "outboundFlightNumber": "ZZ1829",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "Duffel Airways",
+        "returnFlightNumber": "ZZ1829",
+        "airline": "Duffel Airways",
+        "flightNumber": "ZZ1829",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 105.91,
+        "currency": "GBP",
+        "depTime": "10:03",
+        "arrTime": "11:35",
+        "returnDepTime": "13:09",
+        "returnArrTime": "14:41"
+      },
+      {
+        "id": "duffel_off_0000B3TzDDC7vXJLWrcxkc",
+        "offerId": "off_0000B3TzDDC7vXJLWrcxkc",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "British Airways",
+        "outboundFlightNumber": "BA1516",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "British Airways",
+        "returnFlightNumber": "BA1516",
+        "airline": "British Airways",
+        "flightNumber": "BA1516",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 107.78,
+        "currency": "GBP",
+        "depTime": "10:03",
+        "arrTime": "11:35",
+        "returnDepTime": "13:09",
+        "returnArrTime": "14:41"
+      },
+      {
+        "id": "duffel_off_0000B3TzDDC7vXJLWrcxku",
+        "offerId": "off_0000B3TzDDC7vXJLWrcxku",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "Iberia",
+        "outboundFlightNumber": "IB3167",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "Iberia",
+        "returnFlightNumber": "IB3167",
+        "airline": "Iberia",
+        "flightNumber": "IB3167",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 108.85,
+        "currency": "GBP",
+        "depTime": "10:03",
+        "arrTime": "11:35",
+        "returnDepTime": "13:09",
+        "returnArrTime": "14:41"
+      },
+      {
+        "id": "duffel_off_0000B3TzDUdL5cBBcBUR1U",
+        "offerId": "off_0000B3TzDUdL5cBBcBUR1U",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "Lufthansa",
+        "outboundFlightNumber": "LH1058",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "LH1069",
+        "airline": "Lufthansa",
+        "flightNumber": "LH1058",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 258.45,
+        "currency": "GBP",
+        "depTime": "08:10",
+        "arrTime": "09:40",
+        "returnDepTime": "07:00",
+        "returnArrTime": "08:35"
+      },
+      {
+        "id": "duffel_off_0000B3TzDUcz6vtbb5K9TX",
+        "offerId": "off_0000B3TzDUcz6vtbb5K9TX",
+        "source": "duffel",
+        "from": "FRA",
+        "to": "NCE",
+        "outboundFrom": "FRA",
+        "outboundTo": "NCE",
+        "outboundAirline": "Lufthansa",
+        "outboundFlightNumber": "LH1060",
+        "date": "2026-03-14",
+        "returnDate": "2026-03-18",
+        "roundTrip": true,
+        "returnFrom": "NCE",
+        "returnTo": "FRA",
+        "returnAirline": "Lufthansa",
+        "returnFlightNumber": "LH1069",
+        "airline": "Lufthansa",
+        "flightNumber": "LH1060",
+        "cabin": "",
+        "pointsRequired": 0,
+        "cashPrice": 258.45,
+        "currency": "GBP",
+        "depTime": "12:00",
+        "arrTime": "13:30",
+        "returnDepTime": "07:00",
+        "returnArrTime": "08:35"
+      }
+    ],
+    "selectedFlightId": "duffel_off_0000B3TypcEQ2o1meVL65G",
+    "createdAt": "2026-02-19T14:57:27.518Z",
+    "updatedAt": "2026-02-19T15:02:01.186Z"
+  }
+]

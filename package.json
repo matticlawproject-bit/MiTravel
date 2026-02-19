@@ -1,0 +1,10 @@
+{
+  "name": "mi-travel-mvp",
+  "version": "0.1.0",
+  "description": "Mi-Travel MVP starter app",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "license": "UNLICENSED"
+}

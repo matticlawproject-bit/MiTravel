@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi-Travel</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+  <div class="bg-orb orb-c"></div>
+
+  <header class="site-header">
+    <div>
+      <p class="brand">Mi-Travel</p>
+      <p class="tagline">AI-powered reward travel</p>
+    </div>
+    <div class="header-actions" id="headerActions">
+      <button class="ghost-btn" id="goToAuthBtn">Get started</button>
+      <button class="primary-btn hidden" id="logoutBtn" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main class="site-main">
+    <section id="publicArea" class="public-area">
+      <article class="hero-card glass">
+        <h1>AI Travel Revolution</h1>
+        <p>Explore loyalty points, find the best redemption, and manage your travel profile in one place.</p>
+        <button id="heroGetStartedBtn" class="primary-btn" type="button">Get started</button>
+      </article>
+
+      <div class="auth-grid">
+        <article class="panel glass">
+          <h2>Log in</h2>
+          <form id="loginForm" class="form-stack">
+            <label class="field filled">
+              <span>Email</span>
+              <input name="email" type="email" required />
+            </label>
+            <label class="field outlined">
+              <span>Password</span>
+              <input name="password" type="password" minlength="8" required />
+            </label>
+            <button type="submit" class="primary-btn">Log in</button>
+          </form>
+          <p id="loginMessage" class="feedback"></p>
+        </article>
+
+        <article class="panel glass">
+          <h2>Sign up</h2>
+          <form id="signupForm" class="form-stack">
+            <label class="field outlined">
+              <span>Full name</span>
+              <input name="name" type="text" required />
+            </label>
+            <label class="field filled">
+              <span>Email</span>
+              <input name="email" type="email" required />
+            </label>
+            <label class="field outlined">
+              <span>Password</span>
+              <input name="password" type="password" minlength="8" required />
+            </label>
+            <button type="submit" class="primary-btn">Create account</button>
+          </form>
+          <p id="signupMessage" class="feedback"></p>
+        </article>
+      </div>
+    </section>
+
+    <section id="appArea" class="app-area hidden">
+      <aside class="sidebar glass">
+        <p class="sidebar-title">Navigation</p>
+        <nav class="side-nav" id="sideNav">
+          <button data-route="discover" class="active" type="button">Discover</button>
+          <button data-route="search" type="button">AI Search</button>
+          <button data-route="searchHistory" type="button">Search History</button>
+          <button data-route="personalization" type="button">Personalization</button>
+          <button data-route="bookings" type="button">My bookings</button>
+          <button data-route="settings" type="button">Settings</button>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <article id="routeDiscover" class="route-panel active">
+          <div class="panel-head">
+            <h2 id="discoverName">Hi</h2>
+            <p>Welcome to Mi Travel</p>
+          </div>
+
+          <div class="discover-grid">
+            <article class="gradient-card search-card">
+              <h3>AI Search</h3>
+              <p>Go to our AI chat and get reward flight options instantly.</p>
+              <button class="pill-btn" data-route-jump="search" type="button">Search</button>
+            </article>
+
+            <article class="gradient-card reco-card">
+              <h3>Recommendation</h3>
+              <p>Add your frequent flyer details to unlock smarter suggestions.</p>
+              <button class="pill-btn" data-route-jump="personalization" type="button">Add</button>
+            </article>
+          </div>
+        </article>
+
+        <article id="routeSearch" class="route-panel">
+          <div class="title-row">
+            <h2>AI Search</h2>
+            <button id="newSearchSessionBtn" class="ghost-btn" type="button">New session</button>
+          </div>
+          <div id="chatFeed" class="chat-feed"></div>
+          <form id="aiSearchForm" class="message-input-wrap">
+            <input id="aiMessageInput" name="message" type="text" placeholder="Type your message here" required />
+            <button id="voiceBtn" type="button" class="ghost-btn compact" aria-label="Use voice input">Mic</button>
+            <button type="submit" class="primary-btn compact">Search</button>
+          </form>
+          <p id="searchMessage" class="feedback"></p>
+        </article>
+
+        <article id="routeSearchHistory" class="route-panel">
+          <h2>Search History</h2>
+          <section class="panel glass history-layout">
+            <div id="historyList" class="history-list"></div>
+            <div id="historyDetail" class="history-detail"></div>
+          </section>
+        </article>
+
+        <article id="routePersonalization" class="route-panel">
+          <h2>Personalization</h2>
+
+          <div class="stack-row">
+            <section class="panel glass">
+              <h3>Frequent Flyer Programs</h3>
+              <div id="rewardCards" class="ffp-strip"></div>
+              <form id="rewardForm" class="form-stack compact">
+                <label class="field filled"><span>Program</span><input name="programName" type="text" required /></label>
+                <label class="field outlined"><span>Membership number</span><input name="memberId" type="text" /></label>
+                <div class="mini-grid">
+                  <label class="field outlined"><span>Miles</span><input name="points" type="number" min="0" required /></label>
+                  <label class="field outlined"><span>Tier</span><input name="tier" type="text" /></label>
+                </div>
+                <button class="primary-btn compact" type="submit">Add program</button>
+              </form>
+            </section>
+
+            <section class="panel glass">
+              <h3>Traveler Profile</h3>
+              <form id="profileForm" class="form-stack compact">
+                <div class="mini-grid">
+                  <label class="field outlined"><span>First name</span><input name="firstName" type="text" /></label>
+                  <label class="field outlined"><span>Middle name</span><input name="middleName" type="text" /></label>
+                </div>
+                <div class="mini-grid">
+                  <label class="field outlined"><span>Title</span><input name="title" type="text" placeholder="Mr / Ms / Mrs / Mx" /></label>
+                  <label class="field outlined"><span>Gender</span><input name="gender" type="text" placeholder="M / F" /></label>
+                </div>
+                <label class="field outlined"><span>Family name</span><input name="lastName" type="text" /></label>
+                <label class="field outlined"><span>Address</span><input name="address" type="text" /></label>
+                <div class="mini-grid">
+                  <label class="field outlined"><span>Passport number</span><input name="passportNumber" type="text" /></label>
+                  <label class="field outlined"><span>Home airport (IATA)</span><input name="homeAirport" type="text" maxlength="3" /></label>
+                </div>
+                <label class="field outlined"><span>Date of birth</span><input name="bornOn" type="date" /></label>
+                <div class="mini-grid">
+                  <label class="field outlined"><span>Passport expiry</span><input name="passportExpiry" type="date" /></label>
+                  <label class="field outlined"><span>Country of issuance</span><input name="passportCountry" type="text" /></label>
+                </div>
+                <h4>Traveler preferences</h4>
+                <div id="preferenceChips" class="chip-row"></div>
+                <button class="primary-btn compact" type="submit">Save personalization</button>
+              </form>
+            </section>
+          </div>
+
+          <section class="panel glass payment-section">
+            <div class="title-row">
+              <h3>Payment methods</h3>
+              <button class="ghost-btn" data-route-jump="payment" type="button">Add new</button>
+            </div>
+            <div id="paymentList" class="payment-list"></div>
+          </section>
+
+          <p id="personalizationMessage" class="feedback"></p>
+        </article>
+
+        <article id="routePayment" class="route-panel">
+          <h2>Payment</h2>
+          <section class="panel glass">
+            <form id="paymentForm" class="form-stack">
+              <label class="field filled"><span>Card number</span><input name="cardNumber" type="text" required /></label>
+              <label class="field filled"><span>Cardholder name</span><input name="cardholderName" type="text" required /></label>
+              <div class="mini-grid">
+                <label class="field filled"><span>CVV</span><input name="cvv" type="text" required /></label>
+                <label class="field filled"><span>EXP</span><input name="exp" type="text" placeholder="MM/YY" required /></label>
+              </div>
+              <label class="field outlined"><span>Country or region</span><input name="country" type="text" required /></label>
+              <label class="field filled"><span>Street address</span><input name="address" type="text" /></label>
+              <label class="field filled"><span>ZIP code</span><input name="zip" type="text" /></label>
+              <button type="submit" class="primary-btn">Save payment method</button>
+            </form>
+            <p id="paymentMessage" class="feedback"></p>
+          </section>
+        </article>
+
+        <article id="routeBookings" class="route-panel">
+          <h2>My bookings</h2>
+          <section class="panel glass">
+            <div id="bookingsList" class="flight-results"></div>
+          </section>
+        </article>
+
+        <article id="routeSettings" class="route-panel">
+          <h2>Settings</h2>
+          <section class="panel glass">
+            <form id="settingsForm" class="form-stack">
+              <label class="field outlined"><span>Language</span><input name="language" type="text" /></label>
+              <label class="field outlined"><span>Email</span><input name="email" type="email" readonly /></label>
+              <label class="field outlined"><span>Phone</span><input name="phone" type="text" /></label>
+              <article class="security-card">
+                <div class="security-row">
+                  <div>
+                    <strong>2-factor authentication</strong>
+                    <p>Enable or disable 2-step authentication.</p>
+                  </div>
+                  <label class="switch">
+                    <input id="twoFactorToggle" type="checkbox" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </article>
+              <button class="primary-btn" type="submit">Save settings</button>
+            </form>
+            <p id="settingsMessage" class="feedback"></p>
+          </section>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

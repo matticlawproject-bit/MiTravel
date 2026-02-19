@@ -1,0 +1,27 @@
+[
+  {
+    "id": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
+    "name": "Mathieu MAtti Mat",
+    "email": "matticlawproject@gmail.com",
+    "passwordSalt": "6f721f56808a44be59487f2f6e034d62",
+    "passwordHash": "2ba74955eb3252185091038cbe17da5587101afb8b13129ef20c2d6513494340375a1ae41261e88d2626d378307ce6216e026cfaae878ce799bee66dda7eaee4",
+    "firstName": "Mathieu",
+    "middleName": "MAtti",
+    "lastName": "Mat",
+    "homeAirport": "FRA",
+    "address": "Rosenaustr",
+    "passportNumber": "16AK34958",
+    "passportExpiry": "2036-03-10",
+    "passportCountry": "France",
+    "phone": "+491742199490",
+    "language": "English",
+    "twoFactorEnabled": false,
+    "preferences": [
+      "Business"
+    ],
+    "createdAt": "2026-02-19T13:44:34.164Z",
+    "title": "Mr",
+    "gender": "M",
+    "bornOn": "1981-02-17"
+  }
+]
