@@ -1,0 +1,28 @@
+[
+  {
+    "id": "5ac61f03-af44-4cee-8f1a-6a44999f4947",
+    "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
+    "brand": "Visa",
+    "cardholderName": "Matti Mat",
+    "last4": "0000",
+    "exp": "10/29",
+    "country": "UK",
+    "address": "streeet main",
+    "zip": "213542",
+    "primary": true,
+    "createdAt": "2026-02-19T13:46:38.743Z"
+  },
+  {
+    "id": "1b74d708-7cbf-4085-bb48-0a454d180064",
+    "userId": "6dc4a10f-7c90-4481-abf6-6374ebfab9cf",
+    "brand": "Visa",
+    "cardholderName": "Matti Claw",
+    "last4": "4242",
+    "exp": "10/29",
+    "country": "US",
+    "address": "Main street",
+    "zip": "29348",
+    "primary": false,
+    "createdAt": "2026-02-19T14:31:53.832Z"
+  }
+]

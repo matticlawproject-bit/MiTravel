@@ -1,0 +1,10 @@
+{
+  "feeByCabin": {
+    "economy": 2.5,
+    "premium_economy": 5,
+    "business": 5,
+    "first": 5
+  },
+  "duffelFeePercent": 2.5,
+  "updatedAt": "2026-02-19T19:03:10.853Z"
+}

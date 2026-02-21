@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi-Travel</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+  <div class="bg-orb orb-c"></div>
+
+  <header class="site-header">
+    <div>
+      <p class="brand">Mi-Travel</p>
+      <p class="tagline">AI-powered reward travel</p>
+    </div>
+    <div class="header-actions" id="headerActions">
+      <button class="ghost-btn" id="goToAuthBtn">Get started</button>
+      <button class="primary-btn hidden" id="logoutBtn" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main class="site-main">
+    <section id="publicArea" class="public-area">
+      <article class="hero-card glass">
+        <h1>AI Travel Revolution</h1>
+        <p>Explore loyalty points, find the best redemption, and manage your travel profile in one place.</p>
+        <button id="heroGetStartedBtn" class="primary-btn" type="button">Get started</button>
+      </article>
+
+      <div class="auth-grid">
+        <article class="panel glass">
+          <h2>Log in</h2>
+          <form id="loginForm" class="form-stack">
+            <label class="field filled">
+              <span>Email</span>
+              <input name="email" type="email" required />
+            </label>
+            <label class="field outlined">
+              <span>Password</span>
+              <input name="password" type="password" minlength="8" required />
+            </label>
+            <button type="submit" class="primary-btn">Log in</button>
+          </form>
+          <p id="loginMessage" class="feedback"></p>
+        </article>
+
+        <article class="panel glass">
+          <h2>Sign up</h2>
+          <form id="signupForm" class="form-stack">
+            <label class="field outlined">
+              <span>Full name</span>
+              <input name="name" type="text" required />
+            </label>
+            <label class="field filled">
+              <span>Email</span>
+              <input name="email" type="email" required />
+            </label>
+            <label class="field outlined">
+              <span>Password</span>
+              <input name="password" type="password" minlength="8" required />
+            </label>
+            <button type="submit" class="primary-btn">Create account</button>
+          </form>
+          <p id="signupMessage" class="feedback"></p>
+        </article>
+      </div>
+    </section>
+
+    <section id="appArea" class="app-area hidden">
+      <aside class="sidebar glass">
+        <p class="sidebar-title">Navigation</p>
+        <nav class="side-nav" id="sideNav">
+          <button data-route="discover" class="active" type="button">Discover</button>
+          <button data-route="search" type="button">AI Search</button>
+          <button data-route="searchHistory" type="button">Search History</button>
+          <button data-route="personalization" type="button">Personalization</button>
+          <button data-route="bookings" type="button">My bookings</button>
+          <button data-route="admin" id="adminNavBtn" class="hidden" type="button">Admin</button>
+          <button data-route="settings" type="button">Settings</button>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <article id="routeDiscover" class="route-panel active">
+          <div class="panel-head">
+            <h2 id="discoverName">Hi</h2>
+            <p>Welcome to Mi Travel</p>
+          </div>
+
+          <div id="discoverGrid" class="discover-grid">
+            <article id="discoverSearchCard" class="gradient-card search-card">
+              <h3>AI Search</h3>
+              <p>Go to our AI chat and get reward flight options instantly.</p>
+              <button id="discoverSearchBtn" class="pill-btn" data-route-jump="search" type="button">Search</button>
+            </article>
+
+            <article id="discoverRecoCard" class="gradient-card reco-card">
+              <h3 id="discoverRecoTitle">Recommendation</h3>
+              <p id="discoverRecoText">Add your frequent flyer details to unlock smarter suggestions.</p>
+              <p id="discoverRecoMeta" class="muted"></p>
+              <button id="discoverRecoBtn" class="pill-btn" type="button">Add</button>
+            </article>
+          </div>
+        </article>
+
+        <article id="routeSearch" class="route-panel">
+          <div class="title-row">
+            <h2>AI Search</h2>
+            <button id="newSearchSessionBtn" class="ghost-btn" type="button">New session</button>
+          </div>
+          <div id="chatFeed" class="chat-feed"></div>
+          <form id="aiSearchForm" class="message-input-wrap">
+            <input id="aiMessageInput" name="message" type="text" placeholder="Type your message here" required />
+            <button id="voiceBtn" type="button" class="ghost-btn compact" aria-label="Use voice input">Mic</button>
+            <button type="submit" class="primary-btn compact">Search</button>
+          </form>
+          <p id="searchMessage" class="feedback"></p>
+        </article>
+
+        <article id="routeSearchHistory" class="route-panel">
+          <h2>Search History</h2>
+          <section class="panel glass history-layout">
+            <div id="historyList" class="history-list"></div>
+            <div id="historyDetail" class="history-detail"></div>
+          </section>
+        </article>
+
+        <article id="routePersonalization" class="route-panel">
+          <h2>Personalization</h2>
+
+          <div class="stack-row">
+            <section class="panel glass">
+              <h3>Frequent Flyer Programs</h3>
+              <div id="rewardCards" class="ffp-strip"></div>
+              <form id="rewardForm" class="form-stack compact" autocomplete="off">
+                <label class="field filled">
+                  <span>Program</span>
+                  <select name="programName" required>
+                    <option value="" selected disabled>Select a frequent flyer program</option>
+                    <option value="AerClub">AerClub</option>
+                    <option value="Aeroflot Bonus">Aeroflot Bonus</option>
+                    <option value="Aerolineas Plus">Aerolineas Plus</option>
+                    <option value="Aeroplan">Aeroplan</option>
+                    <option value="Air Moldova Club">Air Moldova Club</option>
+                    <option value="AirRewards">AirRewards</option>
+                    <option value="Airpoints">Airpoints</option>
+                    <option value="Alfursan">Alfursan</option>
+                    <option value="ANA Mileage Club">ANA Mileage Club</option>
+                    <option value="Asiana Club">Asiana Club</option>
+                    <option value="Bamboo Club">Bamboo Club</option>
+                    <option value="BlueMiles">BlueMiles</option>
+                    <option value="BreezePoints">BreezePoints</option>
+                    <option value="Cedar Miles">Cedar Miles</option>
+                    <option value="Celestars">Celestars</option>
+                    <option value="Club Premier">Club Premier</option>
+                    <option value="ConnectMiles">ConnectMiles</option>
+                    <option value="Dynasty Flyer">Dynasty Flyer</option>
+                    <option value="Eastern Miles">Eastern Miles</option>
+                    <option value="Egret Club">Egret Club</option>
+                    <option value="Enrich">Enrich</option>
+                    <option value="EuroBonus">EuroBonus</option>
+                    <option value="Executive Club">Executive Club</option>
+                    <option value="Finnair Plus">Finnair Plus</option>
+                    <option value="FlySmiLes">FlySmiLes</option>
+                    <option value="Flying Blue">Flying Blue</option>
+                    <option value="Flying Returns">Flying Returns</option>
+                    <option value="Flypass">Flypass</option>
+                    <option value="Free Spirit">Free Spirit</option>
+                    <option value="GarudaMiles">GarudaMiles</option>
+                    <option value="Iberia Plus">Iberia Plus</option>
+                    <option value="Icelandair Saga Club">Icelandair Saga Club</option>
+                    <option value="Infinity MileageLands">Infinity MileageLands</option>
+                    <option value="JAL Mileage Bank">JAL Mileage Bank</option>
+                    <option value="KrisFlyer">KrisFlyer</option>
+                    <option value="LATAM Pass">LATAM Pass</option>
+                    <option value="LifeMiles">LifeMiles</option>
+                    <option value="LotusMiles">LotusMiles</option>
+                    <option value="Marco Polo Club">Marco Polo Club</option>
+                    <option value="MileagePlus">MileagePlus</option>
+                    <option value="Miles &amp; More">Miles &amp; More</option>
+                    <option value="Miles&amp;Smiles">Miles&amp;Smiles</option>
+                    <option value="Nomad Club">Nomad Club</option>
+                    <option value="Norwegian Reward">Norwegian Reward</option>
+                    <option value="OK Plus">OK Plus</option>
+                    <option value="PhoenixMiles">PhoenixMiles</option>
+                    <option value="Privilege Club">Privilege Club</option>
+                    <option value="Qantas Frequent Flyer">Qantas Frequent Flyer</option>
+                    <option value="Rapid Rewards">Rapid Rewards</option>
+                    <option value="Royal Club">Royal Club</option>
+                    <option value="Royal Orchid Plus">Royal Orchid Plus</option>
+                    <option value="S7 Priority">S7 Priority</option>
+                    <option value="SAA Voyager">SAA Voyager</option>
+                    <option value="SeaMiles">SeaMiles</option>
+                    <option value="ShebaMiles">ShebaMiles</option>
+                    <option value="SKYPASS">SKYPASS</option>
+                    <option value="SkyMiles">SkyMiles</option>
+                    <option value="Suma">Suma</option>
+                    <option value="Sun Country Rewards">Sun Country Rewards</option>
+                    <option value="TAP Miles&amp;Go">TAP Miles&amp;Go</option>
+                    <option value="Teemane Club">Teemane Club</option>
+                    <option value="Wizz Discount Club">Wizz Discount Club</option>
+                    <option value="airasia rewards">airasia rewards</option>
+                    <option value="E-Smiles">E-Smiles</option>
+                  </select>
+                </label>
+                <label class="field outlined"><span>Membership login</span><input name="memberLogin" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" /></label>
+                <label class="field outlined"><span>Membership password</span><input name="memberPassword" type="password" required autocomplete="new-password" /></label>
+                <button class="primary-btn compact" type="submit">Add program</button>
+              </form>
+            </section>
+
+            <section class="panel glass">
+              <h3>Traveler Profile</h3>
+              <form id="profileForm" class="form-stack compact">
+                <div class="mini-grid">
+                  <label class="field outlined"><span>First name</span><input name="firstName" type="text" /></label>
+                  <label class="field outlined"><span>Middle name</span><input name="middleName" type="text" /></label>
+                </div>
+                <div class="mini-grid">
+                  <label class="field outlined"><span>Title</span><input name="title" type="text" placeholder="Mr / Ms / Mrs / Mx" /></label>
+                  <label class="field outlined"><span>Gender</span><input name="gender" type="text" placeholder="M / F" /></label>
+                </div>
+                <label class="field outlined"><span>Family name</span><input name="lastName" type="text" /></label>
+                <label class="field outlined"><span>Address</span><input name="address" type="text" /></label>
+                <div class="mini-grid">
+                  <label class="field outlined"><span>Passport number</span><input name="passportNumber" type="text" /></label>
+                  <label class="field outlined"><span>Home airport (IATA)</span><input name="homeAirport" type="text" maxlength="3" /></label>
+                </div>
+                <label class="field outlined"><span>Date of birth</span><input name="bornOn" type="date" /></label>
+                <div class="mini-grid">
+                  <label class="field outlined"><span>Passport expiry</span><input name="passportExpiry" type="date" /></label>
+                  <label class="field outlined"><span>Country of issuance</span><input name="passportCountry" type="text" /></label>
+                </div>
+                <h4>Traveler preferences</h4>
+                <div id="preferenceChips" class="chip-row"></div>
+                <button class="primary-btn compact" type="submit">Save personalization</button>
+              </form>
+            </section>
+          </div>
+
+          <section class="panel glass payment-section">
+            <div class="title-row">
+              <h3>Payment methods</h3>
+              <button class="ghost-btn" data-route-jump="payment" type="button">Add new</button>
+            </div>
+            <div id="paymentList" class="payment-list"></div>
+          </section>
+
+          <p id="personalizationMessage" class="feedback"></p>
+        </article>
+
+        <article id="routePayment" class="route-panel">
+          <h2>Payment</h2>
+          <section class="panel glass">
+            <form id="paymentForm" class="form-stack">
+              <div id="paymentMethodPicker" class="payment-method-picker">
+                <button type="button" class="ghost-btn active" data-pay-method="card">Credit card</button>
+                <button type="button" class="ghost-btn" data-pay-method="paypal">PayPal</button>
+                <button type="button" class="ghost-btn" data-pay-method="apple_pay">Apple Pay</button>
+              </div>
+              <input id="paymentMethodInput" type="hidden" name="method" value="card" />
+
+              <div id="cardFields" class="form-stack compact">
+                <label class="field filled"><span>Card number</span><input name="cardNumber" type="text" required /></label>
+                <label class="field filled"><span>Cardholder name</span><input name="cardholderName" type="text" required /></label>
+                <div class="mini-grid">
+                  <label class="field filled"><span>CVV</span><input name="cvv" type="text" required /></label>
+                  <label class="field filled"><span>EXP</span><input name="exp" type="text" placeholder="MM/YY" required /></label>
+                </div>
+                <label class="field outlined"><span>Country or region</span><input name="country" type="text" required /></label>
+                <label class="field filled"><span>Street address</span><input name="address" type="text" /></label>
+                <label class="field filled"><span>ZIP code</span><input name="zip" type="text" /></label>
+              </div>
+
+              <div id="paypalFields" class="form-stack compact hidden">
+                <label class="field filled"><span>PayPal email</span><input name="paypalEmail" type="email" autocomplete="off" /></label>
+                <label class="field outlined"><span>PayPal password</span><input name="paypalPassword" type="password" autocomplete="new-password" /></label>
+              </div>
+
+              <div id="applePayFields" class="form-stack compact hidden">
+                <label class="field filled"><span>Apple ID email</span><input name="applePayEmail" type="email" autocomplete="off" /></label>
+                <label class="field outlined"><span>Apple ID password</span><input name="applePayPassword" type="password" autocomplete="new-password" /></label>
+              </div>
+
+              <button id="paymentSubmitBtn" type="submit" class="primary-btn">Save payment method</button>
+            </form>
+            <p id="paymentMessage" class="feedback"></p>
+          </section>
+        </article>
+
+        <article id="routeBookings" class="route-panel">
+          <h2>My bookings</h2>
+          <section class="panel glass">
+            <div id="bookingsList" class="flight-results"></div>
+          </section>
+        </article>
+
+        <article id="routeAdmin" class="route-panel">
+          <h2>Admin Dashboard</h2>
+
+          <section class="panel glass admin-kpis" id="adminKpis"></section>
+
+          <section class="panel glass">
+            <div class="title-row">
+              <h3>Duffel Fee Markup</h3>
+            </div>
+            <form id="adminPricingForm" class="form-stack compact">
+              <div class="mini-grid">
+                <label class="field outlined">
+                  <span>Economy fee %</span>
+                  <input id="adminFeeEconomyInput" name="feeEconomy" type="number" min="0" max="100" step="0.1" required />
+                </label>
+                <label class="field outlined">
+                  <span>Premium economy fee %</span>
+                  <input id="adminFeePremiumEconomyInput" name="feePremiumEconomy" type="number" min="0" max="100" step="0.1" required />
+                </label>
+              </div>
+              <div class="mini-grid">
+                <label class="field outlined">
+                  <span>Business fee %</span>
+                  <input id="adminFeeBusinessInput" name="feeBusiness" type="number" min="0" max="100" step="0.1" required />
+                </label>
+                <label class="field outlined">
+                  <span>First fee %</span>
+                  <input id="adminFeeFirstInput" name="feeFirst" type="number" min="0" max="100" step="0.1" required />
+                </label>
+              </div>
+              <button class="primary-btn compact" type="submit">Save fee</button>
+            </form>
+            <p id="adminPricingMessage" class="feedback"></p>
+          </section>
+
+          <section class="panel glass admin-grid">
+            <article class="admin-chart">
+              <h3>Top Searched Routes</h3>
+              <div id="adminRouteStats" class="admin-bar-list"></div>
+            </article>
+            <article class="admin-chart">
+              <h3>Frequent Flyer Programs</h3>
+              <div id="adminFfpStats" class="admin-bar-list"></div>
+            </article>
+          </section>
+
+          <section class="panel glass">
+            <div class="title-row">
+              <h3>Stripe Payments</h3>
+            </div>
+            <div id="adminStripeKpis" class="admin-kpis admin-kpis-compact"></div>
+            <div id="adminStripeStatus" class="admin-bar-list"></div>
+          </section>
+        </article>
+
+        <article id="routeSettings" class="route-panel">
+          <h2>Settings</h2>
+          <section class="panel glass">
+            <form id="settingsForm" class="form-stack">
+              <label class="field outlined"><span>Language</span><input name="language" type="text" /></label>
+              <label class="field outlined"><span>Email</span><input name="email" type="email" readonly /></label>
+              <label class="field outlined"><span>Phone</span><input name="phone" type="text" /></label>
+              <article class="security-card">
+                <div class="security-row">
+                  <div>
+                    <strong>2-factor authentication</strong>
+                    <p>Enable or disable 2-step authentication.</p>
+                  </div>
+                  <label class="switch">
+                    <input id="twoFactorToggle" type="checkbox" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+              </article>
+              <button class="primary-btn" type="submit">Save settings</button>
+            </form>
+            <p id="settingsMessage" class="feedback"></p>
+          </section>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

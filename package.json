@@ -1,0 +1,16 @@
+{
+  "name": "mi-travel-mvp",
+  "version": "0.1.0",
+  "description": "Mi-Travel MVP starter app",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "db:schema": "cat db/schema.sql",
+    "db:schema:entities": "cat db/schema.entities.sql",
+    "secret:set": "node src/set-secret.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.3"
+  },
+  "license": "UNLICENSED"
+}

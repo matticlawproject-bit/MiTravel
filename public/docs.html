@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MiTravel Technical Documentation</title>
+  <style>
+    :root {
+      --bg: #0b1530;
+      --card: #131f41;
+      --card2: #1b2a57;
+      --text: #f5f7ff;
+      --muted: #b9c4e4;
+      --line: #30457d;
+      --accent: #7ac7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 0% 0%, #163982, var(--bg) 45%);
+      color: var(--text);
+      font: 16px/1.5 "Avenir Next", "Segoe UI", sans-serif;
+      padding: 24px;
+    }
+    .wrap { max-width: 1240px; margin: 0 auto; }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 18px;
+      align-items: start;
+    }
+    .content { min-width: 0; }
+    .toc {
+      position: sticky;
+      top: 16px;
+      background: linear-gradient(180deg, var(--card), var(--card2));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .toc h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+    .toc a {
+      display: block;
+      color: var(--muted);
+      text-decoration: none;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 14px;
+    }
+    .toc a:hover {
+      background: rgba(122, 199, 255, 0.12);
+      color: var(--text);
+    }
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 34px; }
+    h2 { font-size: 24px; margin-top: 28px; }
+    p { margin: 8px 0; color: var(--muted); }
+    .card {
+      background: linear-gradient(180deg, var(--card), var(--card2));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      margin: 14px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      text-align: left;
+      padding: 8px;
+      vertical-align: top;
+    }
+    th { background: rgba(122, 199, 255, 0.12); }
+    code {
+      background: rgba(255,255,255,0.08);
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: var(--accent);
+    }
+    pre {
+      background: #0a1229;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      overflow: auto;
+      color: #d6e7ff;
+    }
+    ul { margin: 8px 0 8px 18px; }
+    .muted { color: var(--muted); }
+    .api-op {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      margin: 10px 0;
+      overflow: hidden;
+      background: rgba(9, 18, 42, 0.75);
+    }
+    .api-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .api-method {
+      font-weight: 700;
+      border-radius: 999px;
+      min-width: 62px;
+      text-align: center;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: #0c1020;
+      background: #7ac7ff;
+    }
+    .api-path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #e9f0ff;
+    }
+    .api-summary {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .api-body {
+      display: none;
+      padding: 0 12px 12px;
+      border-top: 1px solid var(--line);
+    }
+    .api-op.open .api-body { display: block; }
+    .tag {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      margin-right: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(9, 18, 42, 0.78);
+      padding: 10px;
+      min-height: 92px;
+    }
+    .flow-step strong {
+      color: #e8f1ff;
+      font-size: 14px;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .flow-arrow {
+      text-align: center;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 20px;
+      line-height: 1;
+      margin: 2px 0;
+    }
+    @media (max-width: 1080px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .toc {
+        position: static;
+        order: -1;
+      }
+    }
+    @media (max-width: 760px) {
+      .flow-grid {
+        grid-template-columns: 1fr;
+      }
+      .flow-arrow {
+        transform: rotate(90deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="layout">
+      <main class="content">
+        <h1>MiTravel Technical Documentation</h1>
+        <p>Version: PostgreSQL-backed persistence (PostgreSQL 18 compatible)</p>
+
+        <h2 id="overview">1. Application Overview</h2>
+        <div class="card">
+          <p>MiTravel is a web app for reward-flight discovery and booking workflows. It includes:</p>
+          <ul>
+            <li>User authentication (register/login/logout)</li>
+            <li>Discover dashboard and recommendation card</li>
+            <li>AI flight search and search history sessions</li>
+            <li>Frequent-flyer profile management</li>
+            <li>Payment method management</li>
+            <li>Booking flow (Duffel order creation when available)</li>
+            <li>Admin dashboard and pricing configuration</li>
+          </ul>
+        </div>
+
+        <h2 id="runtime-architecture">2. Runtime Architecture</h2>
+        <div class="card">
+          <table>
+            <thead>
+              <tr><th>Layer</th><th>Implementation</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Frontend</td><td><code>/public/index.html</code>, <code>/public/app.js</code>, <code>/public/styles.css</code></td><td>Single-page interface with route panels.</td></tr>
+              <tr><td>Backend</td><td><code>/src/server.js</code></td><td>Node HTTP server with REST endpoints.</td></tr>
+              <tr><td>Storage adapter</td><td><code>/src/pg-store.js</code></td><td>PostgreSQL-backed persistence for all app collections.</td></tr>
+              <tr><td>Database schema</td><td><code>/db/schema.sql</code></td><td>Primary runtime schema used by app.</td></tr>
+              <tr><td>Optional relational schema</td><td><code>/db/schema.entities.sql</code></td><td>Expanded table-per-entity model (reference/future migration).</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="db-model">3. Database Model Used by App</h2>
+        <div class="card">
+          <p>The current app persists data into one table: <code>app_data_store</code>.</p>
+          <table>
+            <thead>
+              <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>collection</code></td><td><code>TEXT PRIMARY KEY</code></td><td>Logical collection name (users, sessions, rewards, etc.).</td></tr>
+              <tr><td><code>payload</code></td><td><code>JSONB</code></td><td>Entire collection document/array stored as JSON.</td></tr>
+              <tr><td><code>updated_at</code></td><td><code>TIMESTAMPTZ</code></td><td>Last write timestamp.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="collections">4. Collections in <code>app_data_store</code></h2>
+        <div class="card">
+          <table>
+            <thead>
+              <tr><th>Collection</th><th>Payload Type</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>users</code></td><td>JSON array</td><td>User accounts and profile fields.</td></tr>
+              <tr><td><code>sessions</code></td><td>JSON array</td><td>Session tokens and ownership.</td></tr>
+              <tr><td><code>rewards</code></td><td>JSON array</td><td>Frequent-flyer programs, points, tiers.</td></tr>
+              <tr><td><code>loyaltyVault</code></td><td>JSON array</td><td>Encrypted loyalty credentials metadata.</td></tr>
+              <tr><td><code>flights</code></td><td>JSON array</td><td>Seed flight data used for fallback/local ranking.</td></tr>
+              <tr><td><code>payments</code></td><td>JSON array</td><td>User payment methods.</td></tr>
+              <tr><td><code>bookings</code></td><td>JSON array</td><td>Confirmed bookings and Duffel order refs.</td></tr>
+              <tr><td><code>searchHistory</code></td><td>JSON array</td><td>Search sessions, messages, and latest result snapshots.</td></tr>
+              <tr><td><code>airportsIndex</code></td><td>JSON array</td><td>Airport lookup cache/index.</td></tr>
+              <tr><td><code>adminConfig</code></td><td>JSON object</td><td>Fee percentages and admin pricing config.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="normalized-tables">5. Optional Normalized Tables</h2>
+        <div class="card">
+          <p>The optional schema in <code>/db/schema.entities.sql</code> creates relational tables:</p>
+          <p><code>mt_users</code>, <code>mt_sessions</code>, <code>mt_rewards</code>, <code>mt_loyalty_vault</code>, <code>mt_flights</code>, <code>mt_payments</code>, <code>mt_bookings</code>, <code>mt_search_history</code>, <code>mt_airports_index</code>, <code>mt_admin_config</code>.</p>
+          <p class="muted">These are created for future migration/reference and are not yet the primary runtime read/write path.</p>
+        </div>
+
+        <h2 id="verify-storage">6. How to Verify Data Is Stored Correctly</h2>
+        <div class="card">
+          <p>1) Ensure app runs with a valid DB URL:</p>
+          <pre><code>export DATABASE_URL="postgresql://&lt;user&gt;:&lt;password&gt;@127.0.0.1:5432/mitravel"
+npm install
+npm start</code></pre>
+
+          <p>2) Run verification SQL:</p>
+          <pre><code>psql "$DATABASE_URL" -f db/verify-storage.sql</code></pre>
+
+          <p>3) Quick manual checks:</p>
+          <pre><code>SELECT collection, jsonb_typeof(payload), updated_at
+FROM app_data_store
+ORDER BY collection;
+
+SELECT jsonb_array_length(payload) AS users
+FROM app_data_store
+WHERE collection = 'users';</code></pre>
+        </div>
+
+        <h2 id="api-data-flow">7. API Data Flow (High Level)</h2>
+        <div class="card">
+          <ul>
+            <li><code>POST /api/auth/register</code> inserts a user into <code>users</code> collection and creates a session.</li>
+            <li><code>POST /api/flights/ai-search</code> writes/updates <code>searchHistory</code> and reads loyalty/payment/profile collections.</li>
+            <li><code>POST /api/bookings</code> writes to <code>bookings</code> (Duffel-backed when available).</li>
+            <li>Admin pricing endpoints update <code>adminConfig</code>.</li>
+          </ul>
+        </div>
+
+        <h2 id="search-booking-diagram">8. Search to Booking Data Flow Diagram</h2>
+        <div class="card">
+          <p>This diagram shows the end-to-end path from flight search to final booking persistence.</p>
+          <div class="flow-grid">
+            <div class="flow-step">
+              <strong>1) User Search</strong>
+              <p>User submits AI search request with route/date/cabin and optional frequent-flyer profile.</p>
+            </div>
+            <div class="flow-step">
+              <strong>2) Search API</strong>
+              <p><code>POST /api/flights/ai-search</code> parses intent, fetches offers (Duffel/fallback), ranks results.</p>
+            </div>
+            <div class="flow-step">
+              <strong>3) Persist Search Session</strong>
+              <p>Conversation and result snapshot are saved to <code>searchHistory</code> in <code>app_data_store</code>.</p>
+            </div>
+          </div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-grid">
+            <div class="flow-step">
+              <strong>4) Select Offer + Payment</strong>
+              <p>User clicks Buy. App resolves the selected payment profile from <code>payments</code>.</p>
+            </div>
+            <div class="flow-step">
+              <strong>5) Stripe Authorization</strong>
+              <p>Authorization request is sent to Stripe (manual capture), with booking metadata (route/airline/flight).</p>
+            </div>
+            <div class="flow-step">
+              <strong>6) Duffel Order Creation</strong>
+              <p><code>POST /api/bookings</code> creates Duffel order using the original offer amount and fare currency.</p>
+            </div>
+          </div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-grid">
+            <div class="flow-step">
+              <strong>7) Stripe Capture</strong>
+              <p>After Duffel confirms order, Stripe capture is executed for the authorized PaymentIntent.</p>
+            </div>
+            <div class="flow-step">
+              <strong>8) Booking Persisted</strong>
+              <p>Final booking record stores <code>flight</code>, <code>duffelOrderId</code>, <code>stripeAuthorization</code>, and <code>stripeCapture</code>.</p>
+            </div>
+            <div class="flow-step">
+              <strong>9) Admin Visibility</strong>
+              <p>Admin dashboard computes auth/capture KPIs and status breakdown from stored booking records.</p>
+            </div>
+          </div>
+        </div>
+
+        <h2 id="api-reference">9. API Reference (Swagger Style)</h2>
+        <div class="card">
+          <p>This section is generated from <code>/openapi.json</code>.</p>
+          <p class="muted">Click an operation to expand request body and responses.</p>
+          <div id="apiExplorer">Loading API spec...</div>
+        </div>
+
+        <h2 id="troubleshooting">10. Troubleshooting</h2>
+        <div class="card">
+          <ul>
+            <li>If <code>app_data_store</code> is empty, the app has not started successfully with <code>DATABASE_URL</code>.</li>
+            <li>If <code>Cannot find module 'pg'</code>, run <code>npm install</code>.</li>
+            <li>If npm cache errors occur, clear cache then reinstall dependencies.</li>
+          </ul>
+        </div>
+      </main>
+      <aside class="toc">
+        <h3>On This Page</h3>
+        <a href="#overview">1. Overview</a>
+        <a href="#runtime-architecture">2. Runtime Architecture</a>
+        <a href="#db-model">3. Database Model</a>
+        <a href="#collections">4. Collections</a>
+        <a href="#normalized-tables">5. Normalized Tables</a>
+        <a href="#verify-storage">6. Verify Storage</a>
+        <a href="#api-data-flow">7. API Data Flow</a>
+        <a href="#search-booking-diagram">8. Search to Booking Diagram</a>
+        <a href="#api-reference">9. API Reference</a>
+        <a href="#troubleshooting">10. Troubleshooting</a>
+      </aside>
+    </div>
+  </div>
+  <script>
+    (async function renderApiExplorer() {
+      const mount = document.getElementById('apiExplorer');
+      try {
+        const res = await fetch('/openapi.json');
+        if (!res.ok) throw new Error('Failed to load /openapi.json');
+        const spec = await res.json();
+        const paths = spec.paths || {};
+        const methods = ['get', 'post', 'put', 'delete', 'patch'];
+        mount.innerHTML = '';
+
+        for (const [route, item] of Object.entries(paths)) {
+          for (const method of methods) {
+            if (!item[method]) continue;
+            const op = item[method];
+            const el = document.createElement('div');
+            el.className = 'api-op';
+
+            const head = document.createElement('div');
+            head.className = 'api-head';
+            head.innerHTML = `
+              <span class="api-method">${method.toUpperCase()}</span>
+              <span class="api-path">${route}</span>
+              <span class="api-summary">${op.summary || ''}</span>
+            `;
+            head.addEventListener('click', () => el.classList.toggle('open'));
+
+            const body = document.createElement('div');
+            body.className = 'api-body';
+
+            const tags = (op.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+            const examplesObject = op.requestBody?.content?.['application/json']?.examples || null;
+            const firstNamedExample = examplesObject
+              ? Object.values(examplesObject)[0]?.value
+              : null;
+            const reqExample = op.requestBody?.content?.['application/json']?.example
+              || firstNamedExample
+              || null;
+            const responses = op.responses || {};
+
+            body.innerHTML = `
+              ${tags ? `<p>${tags}</p>` : ''}
+              ${op.description ? `<p>${op.description}</p>` : ''}
+              ${reqExample ? `<h4>Request Example</h4><pre><code>${escapeHtml(JSON.stringify(reqExample, null, 2))}</code></pre>` : '<p class="muted">No request body.</p>'}
+              <h4>Responses</h4>
+              <pre><code>${escapeHtml(JSON.stringify(responses, null, 2))}</code></pre>
+            `;
+
+            el.append(head, body);
+            mount.appendChild(el);
+          }
+        }
+
+        if (!mount.children.length) {
+          mount.textContent = 'No endpoints found in OpenAPI spec.';
+        }
+      } catch (err) {
+        mount.textContent = `Unable to render API explorer: ${err.message}`;
+      }
+    })();
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

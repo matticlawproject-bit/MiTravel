@@ -1,0 +1,298 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MiTravel API",
+    "version": "1.0.0",
+    "description": "REST API for authentication, profile, rewards, payments, search, bookings, and admin operations."
+  },
+  "servers": [
+    { "url": "http://127.0.0.1:3000" }
+  ],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Profile" },
+    { "name": "Rewards" },
+    { "name": "Payments" },
+    { "name": "Search" },
+    { "name": "Bookings" },
+    { "name": "Discover" },
+    { "name": "Admin" }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "required": ["name", "email", "password"], "properties": { "name": { "type": "string" }, "email": { "type": "string", "format": "email" }, "password": { "type": "string", "minLength": 8 } } },
+              "example": { "name": "Mathieu Dupont", "email": "mathieu@example.com", "password": "Admin#2026!" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created" },
+          "400": { "description": "Validation error" },
+          "409": { "description": "Email exists" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "required": ["email", "password"], "properties": { "email": { "type": "string", "format": "email" }, "password": { "type": "string" } } },
+              "example": { "email": "mathieu@example.com", "password": "Admin#2026!" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout",
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "tags": ["Profile"],
+        "summary": "Get current user",
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Auth required" } }
+      },
+      "put": {
+        "tags": ["Profile"],
+        "summary": "Update current user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "firstName": "Mathieu",
+                "lastName": "Dupont",
+                "homeAirport": "FRA",
+                "preferences": ["Business", "Window"],
+                "twoFactorEnabled": true
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Updated" }, "401": { "description": "Auth required" } }
+      }
+    },
+    "/api/rewards": {
+      "get": {
+        "tags": ["Rewards"],
+        "summary": "List rewards",
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Rewards"],
+        "summary": "Add reward program",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "programName": "Miles & More", "memberLogin": "12345678", "memberPassword": "secret" }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created" }, "400": { "description": "Validation error" } }
+      }
+    },
+    "/api/rewards/{id}": {
+      "put": {
+        "tags": ["Rewards"],
+        "summary": "Update reward",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "example": { "points": 120000, "tier": "Gold" } } } },
+        "responses": { "200": { "description": "Updated" }, "404": { "description": "Not found" } }
+      },
+      "delete": {
+        "tags": ["Rewards"],
+        "summary": "Delete reward",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deleted" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/api/payments": {
+      "get": {
+        "tags": ["Payments"],
+        "summary": "List payment methods",
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Payments"],
+        "summary": "Create payment method",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "examples": {
+                "card": { "value": { "method": "card", "cardNumber": "4111111111111111", "cardholderName": "Mathieu Dupont", "cvv": "123", "exp": "12/29", "country": "DE" } },
+                "paypal": { "value": { "method": "paypal", "paypalEmail": "pay@example.com", "paypalPassword": "secret" } },
+                "apple_pay": { "value": { "method": "apple_pay", "applePayEmail": "apple@example.com", "applePayPassword": "secret" } }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created" }, "400": { "description": "Validation error" } }
+      }
+    },
+    "/api/payments/{id}/primary": {
+      "put": {
+        "tags": ["Payments"],
+        "summary": "Set primary payment",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Updated" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/api/payments/{id}": {
+      "delete": {
+        "tags": ["Payments"],
+        "summary": "Delete payment method",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deleted" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/api/search-history": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "List search history sessions",
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Search"],
+        "summary": "Create new search session",
+        "requestBody": { "required": false, "content": { "application/json": { "example": { "title": "AI Search" } } } },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/search-history/{id}": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Get search session",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" }, "404": { "description": "Not found" } }
+      },
+      "put": {
+        "tags": ["Search"],
+        "summary": "Update search session",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "example": { "messages": [{ "role": "user", "text": "Find flights FRA to JFK" }], "latestResults": [], "selectedFlightId": "" } } } },
+        "responses": { "200": { "description": "Updated" }, "400": { "description": "Validation error" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/api/discover/trending": {
+      "get": {
+        "tags": ["Discover"],
+        "summary": "Get trending route snapshot",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/flights/search": {
+      "post": {
+        "tags": ["Search"],
+        "summary": "Search flights",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "from": "FRA",
+                "to": "JFK",
+                "date": "2026-03-10",
+                "returnDate": "2026-03-20",
+                "cabin": "business",
+                "preferences": ["Business"],
+                "loyaltyAccounts": [{ "airline_iata_code": "LH", "account_number": "12345678" }]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Results" }, "400": { "description": "Validation/API error" } }
+      }
+    },
+    "/api/flights/ai-search": {
+      "post": {
+        "tags": ["Search"],
+        "summary": "Natural language flight search",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "message": "Find me business class flights from Frankfurt to New York next month",
+                "context": {},
+                "preferences": ["Business"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Results and parsed query" }, "400": { "description": "Validation/API error" } }
+      }
+    },
+    "/api/bookings": {
+      "get": {
+        "tags": ["Bookings"],
+        "summary": "List bookings",
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Bookings"],
+        "summary": "Create booking from selected offer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "flightId": "duffel_offer_id", "offerId": "off_123", "paymentId": "payment_uuid" }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created" }, "400": { "description": "Validation/API error" }, "404": { "description": "Flight not found" } }
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get admin dashboard stats",
+        "responses": { "200": { "description": "OK" }, "403": { "description": "Admin required" } }
+      }
+    },
+    "/api/admin/pricing-config": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get pricing config",
+        "responses": { "200": { "description": "OK" }, "403": { "description": "Admin required" } }
+      },
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update pricing config",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "feeByCabin": { "economy": 1, "premium_economy": 2, "business": 3, "first": 4 }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Updated" }, "400": { "description": "Validation error" }, "403": { "description": "Admin required" } }
+      }
+    }
+  }
+}
