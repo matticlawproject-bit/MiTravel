@@ -12,7 +12,13 @@ Updated implementation as a responsive website using the same visual language:
 
 ## Run
 
-Set PostgreSQL first:
+Set PostgreSQL first (recommended via `.env`):
+
+```bash
+cp .env.example .env
+```
+
+Or export directly in shell:
 
 ```bash
 export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mitravel"

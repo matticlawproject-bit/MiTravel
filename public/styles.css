@@ -890,6 +890,24 @@ input {
   width: 100%;
 }
 
+.settings-section {
+  margin-top: 14px;
+}
+
+.two-factor-qr-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.two-factor-qr {
+  width: 220px;
+  height: 220px;
+  border-radius: 12px;
+  border: 1px solid var(--soft-line);
+  background: #ffffff;
+  padding: 8px;
+}
+
 .admin-kpis {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

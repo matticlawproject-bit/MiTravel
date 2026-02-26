@@ -11,6 +11,7 @@ const DUFFEL_BASE_URL = process.env.DUFFEL_BASE_URL || 'https://api.duffel.com';
 const DUFFEL_VERSION = process.env.DUFFEL_VERSION || 'v2';
 const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com';
 const STRIPE_BASE_URL = process.env.STRIPE_BASE_URL || 'https://api.stripe.com';
+const TWO_FACTOR_ISSUER = (process.env.TWO_FACTOR_ISSUER || 'MiTravel').trim() || 'MiTravel';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
@@ -299,6 +300,74 @@ function verifyPassword(password, salt, hash) {
   return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(hash, 'hex'));
 }
 
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function toBase32(buffer) {
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (const byte of buffer) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    output += BASE32_ALPHABET[(value << (5 - bits)) & 31];
+  }
+  return output;
+}
+
+function fromBase32(secret) {
+  const normalized = String(secret || '').toUpperCase().replace(/=+$/g, '').replace(/[^A-Z2-7]/g, '');
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+  for (const char of normalized) {
+    const idx = BASE32_ALPHABET.indexOf(char);
+    if (idx === -1) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+function generateTotpSecret() {
+  return toBase32(crypto.randomBytes(20));
+}
+
+function computeTotp(secret, counter) {
+  const key = fromBase32(secret);
+  if (!key.length) return '';
+  const counterBuffer = Buffer.alloc(8);
+  counterBuffer.writeBigUInt64BE(BigInt(counter));
+  const digest = crypto.createHmac('sha1', key).update(counterBuffer).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const binary = ((digest[offset] & 0x7f) << 24)
+    | ((digest[offset + 1] & 0xff) << 16)
+    | ((digest[offset + 2] & 0xff) << 8)
+    | (digest[offset + 3] & 0xff);
+  return String(binary % 1_000_000).padStart(6, '0');
+}
+
+function verifyTotpCode(secret, code) {
+  const normalizedCode = String(code || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(normalizedCode)) return false;
+  const currentCounter = Math.floor(Date.now() / 1000 / 30);
+  for (let offset = -1; offset <= 1; offset += 1) {
+    if (computeTotp(secret, currentCounter + offset) === normalizedCode) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function createSession(userId) {
   const sessions = readJson(FILES.sessions);
   const token = crypto.randomBytes(24).toString('hex');
@@ -363,6 +432,8 @@ function normalizeUser(user) {
     phone: user.phone || '',
     language: user.language || 'English',
     twoFactorEnabled: Boolean(user.twoFactorEnabled),
+    twoFactorSecret: user.twoFactorSecret && typeof user.twoFactorSecret === 'object' ? user.twoFactorSecret : null,
+    twoFactorTempSecret: user.twoFactorTempSecret && typeof user.twoFactorTempSecret === 'object' ? user.twoFactorTempSecret : null,
     preferences: Array.isArray(user.preferences) ? user.preferences : []
   };
 }
@@ -388,6 +459,7 @@ function publicUser(rawUser) {
     language: user.language,
     preferences: user.preferences,
     twoFactorEnabled: user.twoFactorEnabled,
+    twoFactorSetupPending: Boolean(user.twoFactorTempSecret),
     role: user.role,
     createdAt: user.createdAt
   };
@@ -425,12 +497,14 @@ function ensureAdminUser() {
     title: '',
     gender: '',
     bornOn: '',
-    phone: '',
-    language: 'English',
-    twoFactorEnabled: false,
-    preferences: [],
-    createdAt: new Date().toISOString()
-  });
+      phone: '',
+      language: 'English',
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+      twoFactorTempSecret: null,
+      preferences: [],
+      createdAt: new Date().toISOString()
+    });
   writeJson(FILES.users, users);
 }
 
@@ -2605,6 +2679,8 @@ async function handleApi(req, res, pathname) {
       phone: '',
       language: 'English',
       twoFactorEnabled: false,
+      twoFactorSecret: null,
+      twoFactorTempSecret: null,
       preferences: [],
       createdAt: new Date().toISOString()
     };
@@ -2622,6 +2698,7 @@ async function handleApi(req, res, pathname) {
     const body = await parseBody(req);
     const email = (body.email || '').trim().toLowerCase();
     const password = body.password || '';
+    const twoFactorCode = String(body.twoFactorCode || body.code || '').trim();
 
     const users = readJson(FILES.users);
     const user = users.find(u => u.email === email);
@@ -2629,6 +2706,18 @@ async function handleApi(req, res, pathname) {
     if (!user || !verifyPassword(password, user.passwordSalt, user.passwordHash)) {
       sendJson(res, 401, { error: 'Invalid email or password' });
       return;
+    }
+
+    if (user.twoFactorEnabled) {
+      const secret = decryptSecretFromStorage(user.twoFactorSecret);
+      if (!secret) {
+        sendJson(res, 401, { error: 'Two-factor authentication is misconfigured for this account.' });
+        return;
+      }
+      if (!verifyTotpCode(secret, twoFactorCode)) {
+        sendJson(res, 401, { error: 'Invalid or missing two-factor authentication code.' });
+        return;
+      }
     }
 
     const token = createSession(user.id);
@@ -2698,10 +2787,6 @@ async function handleApi(req, res, pathname) {
       next.homeAirport = String(body.homeAirport).trim().toUpperCase();
     }
 
-    if (body.twoFactorEnabled !== undefined) {
-      next.twoFactorEnabled = Boolean(body.twoFactorEnabled);
-    }
-
     if (body.preferences !== undefined && Array.isArray(body.preferences)) {
       next.preferences = body.preferences.map(v => String(v).trim()).filter(Boolean);
     }
@@ -2717,6 +2802,101 @@ async function handleApi(req, res, pathname) {
     writeJson(FILES.users, users);
 
     sendJson(res, 200, { user: publicUser(users[idx]) });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/2fa/setup') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const users = readJson(FILES.users);
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) {
+      sendJson(res, 404, { error: 'User not found' });
+      return;
+    }
+    if (users[idx].twoFactorEnabled) {
+      sendJson(res, 400, { error: 'Two-factor authentication is already enabled.' });
+      return;
+    }
+
+    const secret = generateTotpSecret();
+    const encryptedSecret = encryptSecretForStorage(secret);
+    users[idx].twoFactorTempSecret = encryptedSecret;
+    writeJson(FILES.users, users);
+
+    const accountLabel = encodeURIComponent(String(users[idx].email || users[idx].id));
+    const issuerLabel = encodeURIComponent(TWO_FACTOR_ISSUER);
+    const otpauthUrl = `otpauth://totp/${issuerLabel}:${accountLabel}?secret=${secret}&issuer=${issuerLabel}&algorithm=SHA1&digits=6&period=30`;
+
+    sendJson(res, 200, {
+      secret,
+      otpauthUrl,
+      issuer: TWO_FACTOR_ISSUER,
+      account: users[idx].email || users[idx].id
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/2fa/enable') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await parseBody(req);
+    const code = String(body.code || body.twoFactorCode || '').trim();
+
+    const users = readJson(FILES.users);
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) {
+      sendJson(res, 404, { error: 'User not found' });
+      return;
+    }
+
+    const tempSecret = decryptSecretFromStorage(users[idx].twoFactorTempSecret);
+    if (!tempSecret) {
+      sendJson(res, 400, { error: '2FA setup is not initialized. Start setup first.' });
+      return;
+    }
+
+    if (!verifyTotpCode(tempSecret, code)) {
+      sendJson(res, 400, { error: 'Invalid authenticator code.' });
+      return;
+    }
+
+    users[idx].twoFactorEnabled = true;
+    users[idx].twoFactorSecret = users[idx].twoFactorTempSecret;
+    users[idx].twoFactorTempSecret = null;
+    writeJson(FILES.users, users);
+    sendJson(res, 200, { user: publicUser(users[idx]) });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/2fa/disable') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await parseBody(req);
+    const code = String(body.code || body.twoFactorCode || '').trim();
+
+    const users = readJson(FILES.users);
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) {
+      sendJson(res, 404, { error: 'User not found' });
+      return;
+    }
+
+    const nextUser = users[idx];
+    if (nextUser.twoFactorEnabled) {
+      const secret = decryptSecretFromStorage(nextUser.twoFactorSecret);
+      if (!secret || !verifyTotpCode(secret, code)) {
+        sendJson(res, 400, { error: 'Invalid authenticator code.' });
+        return;
+      }
+    }
+
+    nextUser.twoFactorEnabled = false;
+    nextUser.twoFactorSecret = null;
+    nextUser.twoFactorTempSecret = null;
+    users[idx] = nextUser;
+    writeJson(FILES.users, users);
+    sendJson(res, 200, { user: publicUser(nextUser) });
     return;
   }
 

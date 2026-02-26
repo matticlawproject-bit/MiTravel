@@ -1,8 +1,41 @@
 const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
+
+let envLoaded = false;
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function parseEnvValue(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function loadEnvFileOnce() {
+  if (envLoaded) return;
+  envLoaded = true;
+  const envPath = path.join(__dirname, '..', '.env');
+  if (!fs.existsSync(envPath)) return;
+
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separator = trimmed.indexOf('=');
+    if (separator <= 0) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = parseEnvValue(trimmed.slice(separator + 1));
+    if (!key) continue;
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
 }
 
 function readLegacyJson(filePath, fallback) {
@@ -16,9 +49,10 @@ function readLegacyJson(filePath, fallback) {
 }
 
 function createPgDataStore({ connectionString, defaults, legacyFiles }) {
+  loadEnvFileOnce();
   const url = String(connectionString || process.env.DATABASE_URL || '').trim();
   if (!url) {
-    throw new Error('DATABASE_URL is required to run with PostgreSQL.');
+    throw new Error('DATABASE_URL is required. Set it in shell or in a .env file at project root.');
   }
 
   const pool = new Pool({ connectionString: url });

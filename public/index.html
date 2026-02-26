@@ -42,6 +42,10 @@
               <span>Password</span>
               <input name="password" type="password" minlength="8" required />
             </label>
+            <label class="field outlined">
+              <span>2FA code (if enabled)</span>
+              <input name="twoFactorCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+            </label>
             <button type="submit" class="primary-btn">Log in</button>
           </form>
           <p id="loginMessage" class="feedback"></p>
@@ -76,10 +80,9 @@
           <button data-route="discover" class="active" type="button">Discover</button>
           <button data-route="search" type="button">AI Search</button>
           <button data-route="searchHistory" type="button">Search History</button>
-          <button data-route="personalization" type="button">Personalization</button>
           <button data-route="bookings" type="button">My bookings</button>
           <button data-route="admin" id="adminNavBtn" class="hidden" type="button">Admin</button>
-          <button data-route="settings" type="button">Settings</button>
+          <button data-route="personalization" type="button">Personalization</button>
         </nav>
       </aside>
 
@@ -241,6 +244,56 @@
             </section>
           </div>
 
+          <section class="panel glass settings-section">
+            <h3>Settings</h3>
+            <form id="settingsForm" class="form-stack">
+              <label class="field outlined"><span>Language</span><input name="language" type="text" /></label>
+              <label class="field outlined"><span>Email</span><input name="email" type="email" readonly /></label>
+              <label class="field outlined"><span>Phone</span><input name="phone" type="text" /></label>
+              <button class="primary-btn" type="submit">Save settings</button>
+            </form>
+            <p id="settingsMessage" class="feedback"></p>
+
+            <article class="security-card">
+              <div class="security-row">
+                <div>
+                  <strong>Google Authenticator</strong>
+                  <p id="twoFactorStatus">Two-factor authentication is disabled.</p>
+                </div>
+              </div>
+              <div class="form-stack compact">
+                <button id="twoFactorSetupBtn" type="button" class="ghost-btn compact">Set up authenticator</button>
+              </div>
+              <div id="twoFactorSetupPanel" class="form-stack compact hidden">
+                <p class="muted">Manual key:</p>
+                <code id="twoFactorSecretKey"></code>
+                <div class="two-factor-qr-wrap">
+                  <img id="twoFactorQrImage" alt="Authenticator QR Code" class="two-factor-qr hidden" />
+                </div>
+                <div class="flight-actions">
+                  <button id="twoFactorQrPopupBtn" type="button" class="ghost-btn compact">Open QR popup</button>
+                  <a id="twoFactorOtpAuthLink" href="#" target="_blank" rel="noopener noreferrer">Open Authenticator Link</a>
+                </div>
+                <label class="field outlined">
+                  <span>Authenticator code</span>
+                  <input id="twoFactorEnableCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+                </label>
+                <div class="flight-actions">
+                  <button id="twoFactorEnableBtn" type="button" class="primary-btn compact">Enable 2FA</button>
+                  <button id="twoFactorSetupCancelBtn" type="button" class="ghost-btn compact">Cancel</button>
+                </div>
+              </div>
+              <div id="twoFactorDisablePanel" class="form-stack compact hidden">
+                <label class="field outlined">
+                  <span>Authenticator code</span>
+                  <input id="twoFactorDisableCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+                </label>
+                <button id="twoFactorDisableBtn" type="button" class="ghost-btn compact">Disable 2FA</button>
+              </div>
+              <p id="twoFactorMessage" class="feedback"></p>
+            </article>
+          </section>
+
           <section class="panel glass payment-section">
             <div class="title-row">
               <h3>Payment methods</h3>
@@ -353,30 +406,6 @@
           </section>
         </article>
 
-        <article id="routeSettings" class="route-panel">
-          <h2>Settings</h2>
-          <section class="panel glass">
-            <form id="settingsForm" class="form-stack">
-              <label class="field outlined"><span>Language</span><input name="language" type="text" /></label>
-              <label class="field outlined"><span>Email</span><input name="email" type="email" readonly /></label>
-              <label class="field outlined"><span>Phone</span><input name="phone" type="text" /></label>
-              <article class="security-card">
-                <div class="security-row">
-                  <div>
-                    <strong>2-factor authentication</strong>
-                    <p>Enable or disable 2-step authentication.</p>
-                  </div>
-                  <label class="switch">
-                    <input id="twoFactorToggle" type="checkbox" />
-                    <span class="slider"></span>
-                  </label>
-                </div>
-              </article>
-              <button class="primary-btn" type="submit">Save settings</button>
-            </form>
-            <p id="settingsMessage" class="feedback"></p>
-          </section>
-        </article>
       </section>
     </section>
   </main>

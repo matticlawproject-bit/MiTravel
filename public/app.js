@@ -14,6 +14,7 @@ const state = {
   trendingDestination: null,
   adminStats: null,
   pricingConfig: null,
+  twoFactorSetup: null,
   searchInProgress: false,
   profileSaveInProgress: false,
   paymentMethod: 'card',
@@ -48,8 +49,7 @@ const routes = {
   personalization: document.getElementById('routePersonalization'),
   payment: document.getElementById('routePayment'),
   bookings: document.getElementById('routeBookings'),
-  admin: document.getElementById('routeAdmin'),
-  settings: document.getElementById('routeSettings')
+  admin: document.getElementById('routeAdmin')
 };
 
 const el = {
@@ -95,7 +95,20 @@ const el = {
   historyList: document.getElementById('historyList'),
   historyDetail: document.getElementById('historyDetail'),
   bookingsList: document.getElementById('bookingsList'),
-  twoFactorToggle: document.getElementById('twoFactorToggle'),
+  twoFactorStatus: document.getElementById('twoFactorStatus'),
+  twoFactorSetupBtn: document.getElementById('twoFactorSetupBtn'),
+  twoFactorSetupPanel: document.getElementById('twoFactorSetupPanel'),
+  twoFactorSecretKey: document.getElementById('twoFactorSecretKey'),
+  twoFactorQrImage: document.getElementById('twoFactorQrImage'),
+  twoFactorQrPopupBtn: document.getElementById('twoFactorQrPopupBtn'),
+  twoFactorOtpAuthLink: document.getElementById('twoFactorOtpAuthLink'),
+  twoFactorEnableCode: document.getElementById('twoFactorEnableCode'),
+  twoFactorEnableBtn: document.getElementById('twoFactorEnableBtn'),
+  twoFactorSetupCancelBtn: document.getElementById('twoFactorSetupCancelBtn'),
+  twoFactorDisablePanel: document.getElementById('twoFactorDisablePanel'),
+  twoFactorDisableCode: document.getElementById('twoFactorDisableCode'),
+  twoFactorDisableBtn: document.getElementById('twoFactorDisableBtn'),
+  twoFactorMessage: document.getElementById('twoFactorMessage'),
   adminKpis: document.getElementById('adminKpis'),
   adminStripeKpis: document.getElementById('adminStripeKpis'),
   adminStripeStatus: document.getElementById('adminStripeStatus'),
@@ -1029,10 +1042,74 @@ function hydrateFormsFromUser() {
   settings.language.value = state.user.language || 'English';
   settings.email.value = state.user.email || '';
   settings.phone.value = state.user.phone || '';
-  el.twoFactorToggle.checked = !!state.user.twoFactorEnabled;
 
   state.selectedPreferences = new Set(Array.isArray(state.user.preferences) ? state.user.preferences : []);
   renderPreferenceChips();
+  renderTwoFactorSection();
+}
+
+function renderTwoFactorSection() {
+  if (!el.twoFactorStatus) return;
+  const enabled = Boolean(state.user?.twoFactorEnabled);
+  const hasSetup = Boolean(state.twoFactorSetup?.secret);
+  const setupPending = Boolean(state.user?.twoFactorSetupPending);
+
+  el.twoFactorStatus.textContent = enabled
+    ? 'Two-factor authentication is enabled.'
+    : (setupPending
+      ? 'Setup started. Enter a valid code to finish activation.'
+      : 'Two-factor authentication is disabled.');
+
+  if (el.twoFactorSetupBtn) {
+    el.twoFactorSetupBtn.classList.toggle('hidden', enabled);
+  }
+  if (el.twoFactorSetupPanel) {
+    el.twoFactorSetupPanel.classList.toggle('hidden', enabled || !hasSetup);
+  }
+  if (el.twoFactorDisablePanel) {
+    el.twoFactorDisablePanel.classList.toggle('hidden', !enabled);
+  }
+  if (el.twoFactorSecretKey) {
+    el.twoFactorSecretKey.textContent = hasSetup ? state.twoFactorSetup.secret : '';
+  }
+  if (el.twoFactorOtpAuthLink) {
+    const href = hasSetup ? state.twoFactorSetup.otpauthUrl : '#';
+    el.twoFactorOtpAuthLink.href = href;
+    el.twoFactorOtpAuthLink.classList.toggle('hidden', !hasSetup);
+  }
+  if (el.twoFactorQrImage) {
+    const qrSrc = hasSetup ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(state.twoFactorSetup.otpauthUrl)}` : '';
+    if (qrSrc) {
+      el.twoFactorQrImage.src = qrSrc;
+    } else {
+      el.twoFactorQrImage.removeAttribute('src');
+    }
+    el.twoFactorQrImage.classList.toggle('hidden', !hasSetup);
+  }
+  if (el.twoFactorQrPopupBtn) {
+    el.twoFactorQrPopupBtn.classList.toggle('hidden', !hasSetup);
+  }
+}
+
+function openTwoFactorQrPopup() {
+  if (!state.twoFactorSetup?.otpauthUrl) return;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(state.twoFactorSetup.otpauthUrl)}`;
+  const secret = String(state.twoFactorSetup.secret || '');
+  const popup = window.open('', 'mitravel_2fa_qr', 'width=420,height=560,resizable=yes,scrollbars=yes');
+  if (!popup) {
+    showFeedback(el.twoFactorMessage, 'Popup blocked. Allow popups and try again.', true);
+    return;
+  }
+  popup.document.title = 'MiTravel 2FA Setup';
+  popup.document.body.innerHTML = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 18px; background: #0f1a35; color: #f3f7ff;">
+      <h2 style="margin:0 0 10px;">Google Authenticator Setup</h2>
+      <p style="margin:0 0 12px; color:#b9c4e4;">Scan this QR code in Google Authenticator.</p>
+      <img src="${qrSrc}" alt="Authenticator QR Code" style="width:280px;height:280px;border-radius:12px;border:1px solid #30457d;background:#fff;padding:8px;" />
+      <p style="margin:12px 0 6px; color:#b9c4e4;">Manual key:</p>
+      <code style="display:block;word-break:break-all;background:rgba(255,255,255,0.08);padding:8px;border-radius:8px;color:#7ac7ff;">${secret}</code>
+    </div>
+  `;
 }
 
 async function refreshUser() {
@@ -1464,7 +1541,6 @@ el.settingsForm.addEventListener('submit', async event => {
 
   try {
     const payload = Object.fromEntries(new FormData(el.settingsForm).entries());
-    payload.twoFactorEnabled = el.twoFactorToggle.checked;
 
     await api('/api/me', {
       method: 'PUT',
@@ -1477,6 +1553,84 @@ el.settingsForm.addEventListener('submit', async event => {
     showFeedback(el.settingsMessage, error.message, true);
   }
 });
+
+if (el.twoFactorSetupBtn) {
+  el.twoFactorSetupBtn.addEventListener('click', async () => {
+    showFeedback(el.twoFactorMessage, '');
+    try {
+      const data = await api('/api/2fa/setup', { method: 'POST', body: JSON.stringify({}) });
+      state.twoFactorSetup = {
+        secret: data.secret || '',
+        otpauthUrl: data.otpauthUrl || ''
+      };
+      renderTwoFactorSection();
+      openTwoFactorQrPopup();
+      showFeedback(el.twoFactorMessage, 'Authenticator setup generated. Add it to Google Authenticator, then enter the 6-digit code.');
+    } catch (error) {
+      showFeedback(el.twoFactorMessage, error.message, true);
+    }
+  });
+}
+
+if (el.twoFactorQrPopupBtn) {
+  el.twoFactorQrPopupBtn.addEventListener('click', () => {
+    openTwoFactorQrPopup();
+  });
+}
+
+if (el.twoFactorSetupCancelBtn) {
+  el.twoFactorSetupCancelBtn.addEventListener('click', () => {
+    state.twoFactorSetup = null;
+    if (el.twoFactorEnableCode) {
+      el.twoFactorEnableCode.value = '';
+    }
+    renderTwoFactorSection();
+  });
+}
+
+if (el.twoFactorEnableBtn) {
+  el.twoFactorEnableBtn.addEventListener('click', async () => {
+    showFeedback(el.twoFactorMessage, '');
+    try {
+      const code = String(el.twoFactorEnableCode?.value || '').trim();
+      const data = await api('/api/2fa/enable', {
+        method: 'POST',
+        body: JSON.stringify({ code })
+      });
+      state.user = data.user || state.user;
+      state.twoFactorSetup = null;
+      if (el.twoFactorEnableCode) {
+        el.twoFactorEnableCode.value = '';
+      }
+      renderTwoFactorSection();
+      showFeedback(el.twoFactorMessage, 'Two-factor authentication enabled.');
+    } catch (error) {
+      showFeedback(el.twoFactorMessage, error.message, true);
+    }
+  });
+}
+
+if (el.twoFactorDisableBtn) {
+  el.twoFactorDisableBtn.addEventListener('click', async () => {
+    showFeedback(el.twoFactorMessage, '');
+    try {
+      const code = String(el.twoFactorDisableCode?.value || '').trim();
+      const data = await api('/api/2fa/disable', {
+        method: 'POST',
+        body: JSON.stringify({ code })
+      });
+      state.user = data.user || state.user;
+      state.twoFactorSetup = null;
+      if (el.twoFactorDisableCode) {
+        el.twoFactorDisableCode.value = '';
+      }
+      renderTwoFactorSection();
+      showFeedback(el.twoFactorMessage, 'Two-factor authentication disabled.');
+    } catch (error) {
+      showFeedback(el.twoFactorMessage, error.message, true);
+    }
+  });
+}
 
 if (el.adminPricingForm) {
   el.adminPricingForm.addEventListener('submit', async event => {
@@ -1555,6 +1709,7 @@ el.logoutBtn.addEventListener('click', async () => {
   state.activeSearchMessages = [];
   state.selectedFlightId = null;
   state.lastParsedSearch = null;
+  state.twoFactorSetup = null;
   state.adminStats = null;
   state.pricingConfig = null;
   el.paymentList.innerHTML = '';
