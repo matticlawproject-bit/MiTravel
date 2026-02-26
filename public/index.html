@@ -35,11 +35,11 @@
           <h2>Log in</h2>
           <form id="loginForm" class="form-stack">
             <label class="field filled">
-              <span>Email</span>
+              <span>Email *</span>
               <input name="email" type="email" required />
             </label>
             <label class="field outlined">
-              <span>Password</span>
+              <span>Password *</span>
               <input name="password" type="password" minlength="8" required />
             </label>
             <label class="field outlined">
@@ -48,18 +48,43 @@
             </label>
             <button type="submit" class="primary-btn">Log in</button>
           </form>
+          <button id="forgotPasswordToggleBtn" type="button" class="auth-link-btn">Forgot password?</button>
+          <form id="forgotPasswordForm" class="form-stack hidden">
+            <p class="muted required-note">* Required fields</p>
+            <label class="field filled">
+              <span>Email *</span>
+              <input name="email" type="email" required />
+            </label>
+            <label class="field outlined">
+              <span>Reset code *</span>
+              <input name="code" type="text" inputmode="numeric" maxlength="12" required />
+            </label>
+            <label class="field outlined">
+              <span>New password *</span>
+              <input name="newPassword" type="password" minlength="8" required />
+            </label>
+            <label class="field outlined">
+              <span>Confirm new password *</span>
+              <input name="confirmNewPassword" type="password" minlength="8" required />
+            </label>
+            <div class="flight-actions">
+              <button id="requestResetCodeBtn" type="button" class="ghost-btn compact">Send reset code</button>
+              <button type="submit" class="primary-btn compact">Reset password</button>
+            </div>
+          </form>
           <p id="loginMessage" class="feedback"></p>
+          <p id="forgotPasswordMessage" class="feedback"></p>
         </article>
 
         <article class="panel glass">
           <h2>Sign up</h2>
           <form id="signupForm" class="form-stack">
             <label class="field filled">
-              <span>Email</span>
+              <span>Email *</span>
               <input name="email" type="email" required />
             </label>
             <label class="field outlined">
-              <span>Password</span>
+              <span>Password *</span>
               <input name="password" type="password" minlength="8" required />
             </label>
             <button type="submit" class="primary-btn">Create account</button>
@@ -229,21 +254,22 @@
             <section class="panel glass">
               <h3>Traveler Profile</h3>
               <form id="profileForm" class="form-stack compact">
+                <p class="muted required-note">* Required fields</p>
                 <div class="mini-grid">
-                  <label class="field outlined"><span>First name</span><input name="firstName" type="text" /></label>
+                  <label class="field outlined"><span>First name *</span><input name="firstName" type="text" required /></label>
                   <label class="field outlined"><span>Middle name</span><input name="middleName" type="text" /></label>
                 </div>
                 <div class="mini-grid">
-                  <label class="field outlined"><span>Title</span><input name="title" type="text" placeholder="Mr / Ms / Mrs / Mx" /></label>
-                  <label class="field outlined"><span>Gender</span><input name="gender" type="text" placeholder="M / F" /></label>
+                  <label class="field outlined"><span>Title *</span><input name="title" type="text" placeholder="Mr / Ms / Mrs / Mx" required /></label>
+                  <label class="field outlined"><span>Gender *</span><input name="gender" type="text" placeholder="M / F" required /></label>
                 </div>
-                <label class="field outlined"><span>Family name</span><input name="lastName" type="text" /></label>
+                <label class="field outlined"><span>Family name *</span><input name="lastName" type="text" required /></label>
                 <label class="field outlined"><span>Address</span><input name="address" type="text" /></label>
                 <div class="mini-grid">
                   <label class="field outlined"><span>Passport number</span><input name="passportNumber" type="text" /></label>
                   <label class="field outlined"><span>Home airport (IATA)</span><input name="homeAirport" type="text" maxlength="3" /></label>
                 </div>
-                <label class="field outlined"><span>Date of birth</span><input name="bornOn" type="date" /></label>
+                <label class="field outlined"><span>Date of birth *</span><input name="bornOn" type="date" required /></label>
                 <div class="mini-grid">
                   <label class="field outlined"><span>Passport expiry</span><input name="passportExpiry" type="date" /></label>
                   <label class="field outlined"><span>Country of issuance</span><input name="passportCountry" type="text" /></label>
@@ -258,12 +284,31 @@
           <section class="panel glass settings-section">
             <h3>Settings</h3>
             <form id="settingsForm" class="form-stack">
-              <label class="field outlined"><span>Language</span><input name="language" type="text" /></label>
-              <label class="field outlined"><span>Email</span><input name="email" type="email" readonly /></label>
-              <label class="field outlined"><span>Phone</span><input name="phone" type="text" /></label>
+              <p class="muted required-note">* Required fields</p>
+              <label class="field outlined"><span>Language *</span><input name="language" type="text" required /></label>
+              <label class="field outlined"><span>Phone *</span><input name="phone" type="text" required /></label>
               <button class="primary-btn" type="submit">Save settings</button>
             </form>
             <p id="settingsMessage" class="feedback"></p>
+
+            <form id="changePasswordForm" class="form-stack compact settings-password-form">
+              <h4>Change password</h4>
+              <p class="muted required-note">* Required fields</p>
+              <label class="field outlined">
+                <span>Current password *</span>
+                <input name="currentPassword" type="password" minlength="8" required autocomplete="current-password" />
+              </label>
+              <label class="field outlined">
+                <span>New password *</span>
+                <input name="newPassword" type="password" minlength="8" required autocomplete="new-password" />
+              </label>
+              <label class="field outlined">
+                <span>Confirm new password *</span>
+                <input name="confirmNewPassword" type="password" minlength="8" required autocomplete="new-password" />
+              </label>
+              <button class="primary-btn compact" type="submit">Update password</button>
+            </form>
+            <p id="changePasswordMessage" class="feedback"></p>
 
             <article class="security-card">
               <div class="security-row">
@@ -324,25 +369,18 @@
               <input id="paymentMethodInput" type="hidden" name="method" value="card" />
 
               <div id="cardFields" class="form-stack compact">
-                <label class="field filled"><span>Card number</span><input name="cardNumber" type="text" required /></label>
-                <label class="field filled"><span>Cardholder name</span><input name="cardholderName" type="text" required /></label>
-                <div class="mini-grid">
-                  <label class="field filled"><span>CVV</span><input name="cvv" type="text" required /></label>
-                  <label class="field filled"><span>EXP</span><input name="exp" type="text" placeholder="MM/YY" required /></label>
-                </div>
-                <label class="field outlined"><span>Country or region</span><input name="country" type="text" required /></label>
-                <label class="field filled"><span>Street address</span><input name="address" type="text" /></label>
-                <label class="field filled"><span>ZIP code</span><input name="zip" type="text" /></label>
+                <label class="field filled"><span>Cardholder name</span><input id="stripeCardholderNameInput" name="cardholderName" type="text" required /></label>
+                <label class="field outlined"><span>Billing country (ISO)</span><input id="stripeBillingCountryInput" name="billingCountry" type="text" maxlength="2" placeholder="US" /></label>
+                <div id="stripeCardElement" class="stripe-card-element"></div>
+                <p class="muted">Card details are securely tokenized by Stripe and never stored on MiTravel servers.</p>
               </div>
 
               <div id="paypalFields" class="form-stack compact hidden">
-                <label class="field filled"><span>PayPal email</span><input name="paypalEmail" type="email" autocomplete="off" /></label>
-                <label class="field outlined"><span>PayPal password</span><input name="paypalPassword" type="password" autocomplete="new-password" /></label>
+                <p class="muted">You will be redirected to Stripe Checkout to authorize PayPal securely.</p>
               </div>
 
               <div id="applePayFields" class="form-stack compact hidden">
-                <label class="field filled"><span>Apple ID email</span><input name="applePayEmail" type="email" autocomplete="off" /></label>
-                <label class="field outlined"><span>Apple ID password</span><input name="applePayPassword" type="password" autocomplete="new-password" /></label>
+                <p class="muted">You will be redirected to Stripe Checkout to authorize Apple Pay securely.</p>
               </div>
 
               <button id="paymentSubmitBtn" type="submit" class="primary-btn">Save payment method</button>
@@ -417,6 +455,7 @@
     </section>
   </main>
 
+  <script src="https://js.stripe.com/v3/"></script>
   <script src="/app.js"></script>
 </body>
 </html>

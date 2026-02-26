@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "db:setup": "bash scripts/setup-local-db.sh --write-env",
     "db:schema": "cat db/schema.sql",
     "db:schema:entities": "cat db/schema.entities.sql",
     "secret:set": "node src/set-secret.js"

@@ -24,6 +24,18 @@ Or export directly in shell:
 export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mitravel"
 ```
 
+Bootstrap DB on a new local setup (create DB + apply schema + write `.env` if missing):
+
+```bash
+npm run db:setup
+```
+
+Optional overrides when bootstrapping:
+
+```bash
+DB_HOST=127.0.0.1 DB_PORT=5432 DB_USER=postgres DB_PASSWORD=postgres DB_NAME=mitravel npm run db:setup
+```
+
 Install deps and start:
 
 ```bash
@@ -143,10 +155,15 @@ Booking now follows this sequence:
 
 ```bash
 export STRIPE_SECRET_KEY="sk_test_..."
+export STRIPE_PUBLISHABLE_KEY="pk_test_..."
 # Optional for test mode fallback
 export STRIPE_TEST_PAYMENT_METHOD="pm_card_visa"
 export STRIPE_BASE_URL="https://api.stripe.com"
 ```
+
+Card setup in Personalization now uses Stripe SetupIntent + tokenization (PaymentMethod IDs).
+MiTravel does not store raw card numbers/CVV, reducing PCI DSS scope.
+PayPal and Apple Pay setup in Personalization also run through Stripe Checkout setup mode, and only Stripe tokens are stored.
 
 If `STRIPE_SECRET_KEY` is not set, Stripe auth runs in mock-approval mode for local testing.
 You can also store Stripe key encrypted in PostgreSQL (`app_secrets`) and run without env key:

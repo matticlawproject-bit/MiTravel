@@ -14,27 +14,31 @@ CREATE TABLE IF NOT EXISTS app_secrets (
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
     SELECT 1
     FROM pg_constraint
     WHERE conname = 'chk_app_data_store_collection'
   ) THEN
     ALTER TABLE app_data_store
-      ADD CONSTRAINT chk_app_data_store_collection
-      CHECK (
-        collection IN (
-          'users',
-          'sessions',
-          'rewards',
-          'loyaltyVault',
-          'flights',
-          'payments',
-          'bookings',
-          'searchHistory',
-          'airportsIndex',
-          'adminConfig'
-        )
-      );
+      DROP CONSTRAINT chk_app_data_store_collection;
   END IF;
+
+  ALTER TABLE app_data_store
+    ADD CONSTRAINT chk_app_data_store_collection
+    CHECK (
+      collection IN (
+        'users',
+        'sessions',
+        'rewards',
+        'loyaltyVault',
+        'flights',
+        'payments',
+        'bookings',
+        'searchHistory',
+        'airportsIndex',
+        'adminConfig',
+        'passwordResets'
+      )
+    );
 END
 $$;

@@ -41,7 +41,8 @@ const FILES = {
   bookings: 'bookings',
   searchHistory: 'searchHistory',
   airportsIndex: 'airportsIndex',
-  adminConfig: 'adminConfig'
+  adminConfig: 'adminConfig',
+  passwordResets: 'passwordResets'
 };
 
 const LEGACY_JSON_FILES = {
@@ -54,7 +55,8 @@ const LEGACY_JSON_FILES = {
   bookings: path.join(DATA_DIR, 'bookings.json'),
   searchHistory: path.join(DATA_DIR, 'searchHistory.json'),
   airportsIndex: path.join(DATA_DIR, 'airportsIndex.json'),
-  adminConfig: path.join(DATA_DIR, 'adminConfig.json')
+  adminConfig: path.join(DATA_DIR, 'adminConfig.json'),
+  passwordResets: path.join(DATA_DIR, 'passwordResets.json')
 };
 
 const MIME_TYPES = {
@@ -69,10 +71,13 @@ const DUFFEL_ACCESS_TOKEN = resolveDuffelToken();
 let dataStore = null;
 let dataStoreReadyPromise = null;
 const SECRET_NAMES = {
-  stripeSecretKey: 'stripe_secret_key'
+  stripeSecretKey: 'stripe_secret_key',
+  stripePublishableKey: 'stripe_publishable_key'
 };
 let stripeSecretCache = '';
 let stripeSecretLoaded = false;
+let stripePublishableCache = '';
+let stripePublishableLoaded = false;
 
 function resolveDuffelToken() {
   const direct = (process.env.DUFFEL_ACCESS_TOKEN || process.env.DUFFEL_API_TOKEN || '').trim();
@@ -171,6 +176,20 @@ async function resolveStripeSecretKey() {
   return stripeSecretCache;
 }
 
+async function resolveStripePublishableKey() {
+  const direct = String(process.env.STRIPE_PUBLISHABLE_KEY || '').trim();
+  if (direct) return direct;
+  if (stripePublishableLoaded) return stripePublishableCache;
+  stripePublishableLoaded = true;
+  if (!dataStore || typeof dataStore.getSecret !== 'function') {
+    stripePublishableCache = '';
+    return stripePublishableCache;
+  }
+  const encrypted = await dataStore.getSecret(SECRET_NAMES.stripePublishableKey);
+  stripePublishableCache = decryptSecretFromStorage(encrypted);
+  return stripePublishableCache;
+}
+
 async function storeEncryptedSecret(secretName, clearValue) {
   if (!dataStore || typeof dataStore.setSecret !== 'function') {
     throw new Error('Data store is not initialized for secret storage.');
@@ -189,6 +208,7 @@ const DEFAULT_COLLECTIONS = {
   [FILES.loyaltyVault]: [],
   [FILES.payments]: [],
   [FILES.bookings]: [],
+  [FILES.passwordResets]: [],
   [FILES.searchHistory]: [],
   [FILES.airportsIndex]: [],
   [FILES.adminConfig]: {
@@ -228,6 +248,8 @@ async function ensureDataStore() {
   await dataStoreReadyPromise;
   stripeSecretCache = '';
   stripeSecretLoaded = false;
+  stripePublishableCache = '';
+  stripePublishableLoaded = false;
 }
 
 function readJson(collection) {
@@ -540,6 +562,18 @@ function verifyPassword(password, salt, hash) {
   }
 }
 
+function cleanupExpiredPasswordResets(list) {
+  const now = Date.now();
+  return (Array.isArray(list) ? list : []).filter(entry => {
+    const expiresAt = Date.parse(String(entry?.expiresAt || ''));
+    return Number.isFinite(expiresAt) && expiresAt > now;
+  });
+}
+
+function createPasswordResetCode() {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function toBase32(buffer) {
@@ -671,6 +705,7 @@ function normalizeUser(user) {
     bornOn: user.bornOn || '',
     phone: user.phone || '',
     language: user.language || 'English',
+    stripeCustomerId: String(user.stripeCustomerId || '').trim(),
     twoFactorEnabled: Boolean(user.twoFactorEnabled),
     twoFactorSecret: user.twoFactorSecret && typeof user.twoFactorSecret === 'object' ? user.twoFactorSecret : null,
     twoFactorTempSecret: user.twoFactorTempSecret && typeof user.twoFactorTempSecret === 'object' ? user.twoFactorTempSecret : null,
@@ -698,6 +733,7 @@ function publicUser(rawUser) {
     phone: user.phone,
     language: user.language,
     preferences: user.preferences,
+    hasPassword: Boolean(user.passwordSalt && user.passwordHash),
     twoFactorEnabled: user.twoFactorEnabled,
     twoFactorSetupPending: Boolean(user.twoFactorTempSecret),
     role: user.role,
@@ -739,6 +775,7 @@ function ensureAdminUser() {
     bornOn: '',
       phone: '',
       language: 'English',
+      stripeCustomerId: '',
       twoFactorEnabled: false,
       twoFactorSecret: null,
       twoFactorTempSecret: null,
@@ -782,6 +819,7 @@ function upsertOAuthUser({ provider, email, name }) {
       bornOn: '',
       phone: '',
       language: 'English',
+      stripeCustomerId: '',
       twoFactorEnabled: false,
       twoFactorSecret: null,
       twoFactorTempSecret: null,
@@ -1062,8 +1100,174 @@ function serializePayment(p) {
     country: p.country,
     address: p.address,
     zip: p.zip,
-    primary: Boolean(p.primary)
+    primary: Boolean(p.primary),
+    stripePaymentMethodId: String(p.stripePaymentMethodId || ''),
+    stripeCustomerId: String(p.stripeCustomerId || '')
   };
+}
+
+function normalizeCardBrandForDisplay(brand) {
+  const raw = String(brand || '').trim().toLowerCase();
+  if (raw === 'amex') return 'American Express';
+  if (raw === 'mastercard') return 'Master Card';
+  if (raw) return raw.charAt(0).toUpperCase() + raw.slice(1);
+  return 'Card';
+}
+
+function parseStripeSessionIdFromRaw(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const match = raw.match(/(?:^|\/)(cs_[A-Za-z0-9_]+)/);
+  if (match) return match[1];
+  return raw;
+}
+
+function mapMethodLabelToStripeType(method) {
+  const normalized = String(method || '').trim().toLowerCase();
+  if (normalized === 'paypal') return 'paypal';
+  return 'card';
+}
+
+function mapStripeTypeToLocalMethod(method, fallback = 'card') {
+  const normalized = String(method || '').trim().toLowerCase();
+  if (normalized === 'paypal') return 'paypal';
+  if (normalized === 'card' && String(fallback || '').trim().toLowerCase() === 'apple_pay') return 'apple_pay';
+  return normalized === 'card' ? 'card' : String(fallback || 'card').trim().toLowerCase();
+}
+
+async function ensureStripeCustomerForUser(user) {
+  const stripeSecret = await resolveStripeSecretKey();
+  if (!stripeSecret) {
+    return { error: 'Stripe is not configured. Missing secret key.' };
+  }
+  const users = readJson(FILES.users);
+  const idx = users.findIndex(u => u.id === user.id);
+  if (idx === -1) return { error: 'User not found.' };
+
+  const existingId = String(users[idx].stripeCustomerId || '').trim();
+  if (existingId) {
+    return { customerId: existingId, user: users[idx] };
+  }
+
+  try {
+    const form = new URLSearchParams();
+    form.set('email', String(users[idx].email || '').trim());
+    form.set('name', String(users[idx].name || '').trim() || String(users[idx].email || '').trim());
+    form.set('metadata[user_id]', String(users[idx].id || ''));
+
+    const response = await fetch(`${STRIPE_BASE_URL}/v1/customers`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeSecret}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: form.toString()
+    });
+    const json = await response.json();
+    if (!response.ok || !json.id) {
+      const detail = json?.error?.message || json?.error || 'Unable to create Stripe customer.';
+      return { error: detail };
+    }
+
+    users[idx].stripeCustomerId = String(json.id || '').trim();
+    writeJson(FILES.users, users);
+    return { customerId: users[idx].stripeCustomerId, user: users[idx] };
+  } catch (error) {
+    return { error: `Unable to create Stripe customer. ${error.message || 'Unknown error.'}` };
+  }
+}
+
+function upsertPaymentFromStripeMethod({ userId, customerId, setupIntentId, paymentMethod, fallbackMethod = 'card' }) {
+  const paymentMethodId = String(paymentMethod?.id || '').trim();
+  if (!paymentMethodId) {
+    throw new Error('Stripe payment method id is missing.');
+  }
+
+  const stripeType = String(paymentMethod?.type || '').trim().toLowerCase();
+  const method = mapStripeTypeToLocalMethod(stripeType, fallbackMethod);
+  const card = paymentMethod?.card || null;
+  const hasPrimary = readJson(FILES.payments).some(p => p.userId === userId && p.primary);
+  const payments = readJson(FILES.payments);
+  const existingIdx = payments.findIndex(p => p.userId === userId && String(p.stripePaymentMethodId || '') === paymentMethodId);
+
+  if (method === 'paypal') {
+    const paypalEmail = String(paymentMethod?.paypal?.payer_email || paymentMethod?.billing_details?.email || '').trim();
+    const payerId = String(paymentMethod?.paypal?.payer_id || '').trim();
+    const base = {
+      method: 'paypal',
+      brand: 'PayPal',
+      cardholderName: '',
+      last4: '',
+      exp: '',
+      country: '',
+      address: '',
+      zip: '',
+      paypalEmailMasked: paypalEmail ? maskLogin(paypalEmail) : '',
+      paypalPayerId: payerId,
+      stripePaymentMethodId: paymentMethodId,
+      stripeCustomerId: String(customerId || ''),
+      stripeSetupIntentId: String(setupIntentId || ''),
+      createdAt: new Date().toISOString()
+    };
+    if (existingIdx >= 0) {
+      const existing = payments[existingIdx];
+      Object.assign(existing, base);
+      if (!payments.some((p, i) => p.userId === userId && p.primary && i !== existingIdx)) existing.primary = true;
+      writeJson(FILES.payments, payments);
+      return existing;
+    }
+    const record = {
+      id: crypto.randomUUID(),
+      userId,
+      ...base,
+      primary: !hasPrimary
+    };
+    payments.push(record);
+    writeJson(FILES.payments, payments);
+    return record;
+  }
+
+  const expMonth = String(card?.exp_month || '').padStart(2, '0');
+  const expYear = String(card?.exp_year || '');
+  const exp = expMonth && expYear ? `${expMonth}/${expYear.slice(-2)}` : '';
+  const billingName = String(paymentMethod?.billing_details?.name || '').trim();
+  const billingCountry = String(paymentMethod?.billing_details?.address?.country || '').trim();
+  const billingPostal = String(paymentMethod?.billing_details?.address?.postal_code || '').trim();
+  const walletType = String(card?.wallet?.type || '').trim().toLowerCase();
+  const resolvedMethod = walletType === 'apple_pay' ? 'apple_pay' : method;
+  const brand = resolvedMethod === 'apple_pay' ? 'Apple Pay' : normalizeCardBrandForDisplay(card?.brand);
+
+  const base = {
+    method: resolvedMethod,
+    brand,
+    cardholderName: billingName,
+    last4: String(card?.last4 || ''),
+    exp,
+    country: billingCountry,
+    address: '',
+    zip: billingPostal,
+    stripePaymentMethodId: paymentMethodId,
+    stripeCustomerId: String(customerId || ''),
+    stripeSetupIntentId: String(setupIntentId || '')
+  };
+  if (existingIdx >= 0) {
+    const existing = payments[existingIdx];
+    Object.assign(existing, base);
+    if (!payments.some((p, i) => p.userId === userId && p.primary && i !== existingIdx)) existing.primary = true;
+    writeJson(FILES.payments, payments);
+    return existing;
+  }
+
+  const record = {
+    id: crypto.randomUUID(),
+    userId,
+    ...base,
+    primary: !hasPrimary,
+    createdAt: new Date().toISOString()
+  };
+  payments.push(record);
+  writeJson(FILES.payments, payments);
+  return record;
 }
 
 function serializeReward(r) {
@@ -2621,14 +2825,31 @@ async function authorizePaymentWithStripe({ user, payment, flight }) {
     const travelDate = String(flight.date || '').trim();
     const returnDate = String(flight.returnDate || '').trim();
 
-    const testPaymentMethod = String(process.env.STRIPE_TEST_PAYMENT_METHOD || 'pm_card_visa').trim();
+    const localMethod = String(payment?.method || '').trim().toLowerCase();
+    const stripeMethodType = mapMethodLabelToStripeType(localMethod);
+    const selectedPaymentMethod = String(payment?.stripePaymentMethodId || '').trim();
+    const selectedCustomer = String(payment?.stripeCustomerId || user?.stripeCustomerId || '').trim();
+    if (!selectedPaymentMethod) {
+      if (localMethod === 'card') {
+        return { error: 'Card payment method is not tokenized with Stripe. Please re-add card in Personalization.' };
+      }
+      return { error: `${localMethod === 'paypal' ? 'PayPal' : 'Selected'} payment method is not tokenized with Stripe. Please re-add it in Personalization.` };
+    }
     const form = new URLSearchParams();
     form.set('amount', String(amountMinor));
     form.set('currency', currency);
     form.set('capture_method', 'manual');
     form.set('confirm', 'true');
-    form.set('payment_method_types[]', 'card');
-    form.set('payment_method', testPaymentMethod);
+    form.set('payment_method_types[]', stripeMethodType);
+    form.set('payment_method', selectedPaymentMethod);
+    if (stripeMethodType === 'paypal') {
+      const paypalRiskCorrelationId = crypto.randomBytes(16).toString('hex');
+      form.set('payment_method_options[paypal][risk_correlation_id]', paypalRiskCorrelationId);
+      form.set('metadata[paypal_risk_correlation_id]', paypalRiskCorrelationId);
+    }
+    if (selectedCustomer) {
+      form.set('customer', selectedCustomer);
+    }
     form.set('description', `MiTravel ${route} ${airline}`.slice(0, 255));
     form.set('metadata[user_id]', String(user.id || ''));
     form.set('metadata[flight_id]', String(flight.id || ''));
@@ -2673,6 +2894,7 @@ async function authorizePaymentWithStripe({ user, payment, flight }) {
       amount,
       currency: currency.toUpperCase(),
       paymentMethod: payment.method,
+      stripePaymentMethodId: selectedPaymentMethod,
       captureRequired: true
     };
   } catch (error) {
@@ -2974,6 +3196,7 @@ async function handleApi(req, res, pathname) {
       bornOn: '',
       phone: '',
       language: 'English',
+      stripeCustomerId: '',
       twoFactorEnabled: false,
       twoFactorSecret: null,
       twoFactorTempSecret: null,
@@ -3254,6 +3477,140 @@ async function handleApi(req, res, pathname) {
     const token = createSession(user.id);
     setSessionCookie(res, token);
     sendJson(res, 200, { user: publicUser(user) });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/auth/forgot-password') {
+    const body = await parseBody(req);
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!email) {
+      sendJson(res, 400, { error: 'Email is required.' });
+      return;
+    }
+
+    const users = readJson(FILES.users);
+    const user = users.find(u => String(u.email || '').toLowerCase() === email);
+
+    let resetCode = '';
+    let resets = cleanupExpiredPasswordResets(readJson(FILES.passwordResets));
+    if (user && user.passwordSalt && user.passwordHash) {
+      resetCode = createPasswordResetCode();
+      const { salt, hash } = hashPassword(resetCode);
+      resets = resets.filter(entry => entry.userId !== user.id);
+      resets.push({
+        id: crypto.randomUUID(),
+        userId: user.id,
+        email,
+        codeSalt: salt,
+        codeHash: hash,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + (15 * 60 * 1000)).toISOString()
+      });
+    }
+    writeJson(FILES.passwordResets, resets);
+
+    const response = { message: 'If the email exists, a reset code was generated.' };
+    if (process.env.NODE_ENV !== 'production' && resetCode) {
+      response.resetCode = resetCode;
+    }
+
+    sendJson(res, 200, response);
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/auth/reset-password') {
+    const body = await parseBody(req);
+    const email = String(body.email || '').trim().toLowerCase();
+    const code = String(body.code || '').trim();
+    const newPassword = String(body.newPassword || '').trim();
+    const confirmNewPassword = String(body.confirmNewPassword || '').trim();
+
+    if (!email || !code || !newPassword || !confirmNewPassword) {
+      sendJson(res, 400, { error: 'Email, reset code, new password and confirmation are required.' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      sendJson(res, 400, { error: 'New password must be at least 8 characters.' });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      sendJson(res, 400, { error: 'New password and confirmation do not match.' });
+      return;
+    }
+
+    const users = readJson(FILES.users);
+    const userIdx = users.findIndex(u => String(u.email || '').toLowerCase() === email);
+    if (userIdx === -1 || !users[userIdx].passwordSalt || !users[userIdx].passwordHash) {
+      sendJson(res, 400, { error: 'Invalid reset request.' });
+      return;
+    }
+
+    const userId = users[userIdx].id;
+    let resets = cleanupExpiredPasswordResets(readJson(FILES.passwordResets));
+    const resetEntry = [...resets].reverse().find(entry => entry.userId === userId);
+    if (!resetEntry || !verifyPassword(code, resetEntry.codeSalt, resetEntry.codeHash)) {
+      sendJson(res, 400, { error: 'Invalid or expired reset code.' });
+      return;
+    }
+
+    const { salt, hash } = hashPassword(newPassword);
+    users[userIdx].passwordSalt = salt;
+    users[userIdx].passwordHash = hash;
+    writeJson(FILES.users, users);
+
+    resets = resets.filter(entry => entry.userId !== userId);
+    writeJson(FILES.passwordResets, resets);
+
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/auth/change-password') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+
+    const body = await parseBody(req);
+    const currentPassword = String(body.currentPassword || '').trim();
+    const newPassword = String(body.newPassword || '').trim();
+    const confirmNewPassword = String(body.confirmNewPassword || '').trim();
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      sendJson(res, 400, { error: 'Current password, new password and confirmation are required.' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      sendJson(res, 400, { error: 'New password must be at least 8 characters.' });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      sendJson(res, 400, { error: 'New password and confirmation do not match.' });
+      return;
+    }
+    if (currentPassword === newPassword) {
+      sendJson(res, 400, { error: 'New password must be different from current password.' });
+      return;
+    }
+
+    const users = readJson(FILES.users);
+    const idx = users.findIndex(u => u.id === user.id);
+    if (idx === -1) {
+      sendJson(res, 404, { error: 'User not found' });
+      return;
+    }
+    if (!users[idx].passwordSalt || !users[idx].passwordHash) {
+      sendJson(res, 400, { error: 'Password change is not available for social login accounts.' });
+      return;
+    }
+    if (!verifyPassword(currentPassword, users[idx].passwordSalt, users[idx].passwordHash)) {
+      sendJson(res, 401, { error: 'Current password is incorrect.' });
+      return;
+    }
+
+    const { salt, hash } = hashPassword(newPassword);
+    users[idx].passwordSalt = salt;
+    users[idx].passwordHash = hash;
+    writeJson(FILES.users, users);
+    sendJson(res, 200, { ok: true });
     return;
   }
 
@@ -3552,6 +3909,278 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/api/payments/stripe/config') {
+    const key = await resolveStripePublishableKey();
+    sendJson(res, 200, {
+      enabled: Boolean(key),
+      publishableKey: key
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/payments/stripe/setup-intent') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const stripeSecret = await resolveStripeSecretKey();
+    if (!stripeSecret) {
+      sendJson(res, 400, { error: 'Stripe is not configured on server.' });
+      return;
+    }
+
+    const customerResult = await ensureStripeCustomerForUser(user);
+    if (customerResult.error) {
+      sendJson(res, 400, { error: customerResult.error });
+      return;
+    }
+
+    try {
+      const form = new URLSearchParams();
+      form.set('customer', String(customerResult.customerId));
+      form.set('usage', 'off_session');
+      form.set('payment_method_types[]', 'card');
+      form.set('metadata[user_id]', String(user.id || ''));
+
+      const response = await fetch(`${STRIPE_BASE_URL}/v1/setup_intents`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: form.toString()
+      });
+      const json = await response.json();
+      if (!response.ok || !json.client_secret || !json.id) {
+        const detail = json?.error?.message || json?.error || 'Failed to create Stripe SetupIntent.';
+        sendJson(res, 400, { error: detail });
+        return;
+      }
+
+      sendJson(res, 200, {
+        setupIntentId: String(json.id),
+        clientSecret: String(json.client_secret),
+        customerId: String(customerResult.customerId)
+      });
+      return;
+    } catch (error) {
+      sendJson(res, 400, { error: `Stripe setup failed. ${error.message || 'Unknown error.'}` });
+      return;
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/payments/stripe/save') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await parseBody(req);
+    const setupIntentId = String(body.setupIntentId || '').trim();
+    if (!setupIntentId) {
+      sendJson(res, 400, { error: 'setupIntentId is required.' });
+      return;
+    }
+
+    const stripeSecret = await resolveStripeSecretKey();
+    if (!stripeSecret) {
+      sendJson(res, 400, { error: 'Stripe is not configured on server.' });
+      return;
+    }
+
+    const customerResult = await ensureStripeCustomerForUser(user);
+    if (customerResult.error) {
+      sendJson(res, 400, { error: customerResult.error });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${STRIPE_BASE_URL}/v1/setup_intents/${encodeURIComponent(setupIntentId)}?expand[]=payment_method`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        const detail = json?.error?.message || json?.error || 'Failed to retrieve SetupIntent.';
+        sendJson(res, 400, { error: detail });
+        return;
+      }
+
+      if (String(json.status || '').toLowerCase() !== 'succeeded') {
+        sendJson(res, 400, { error: `SetupIntent is not completed. Current status: ${json.status || 'unknown'}.` });
+        return;
+      }
+
+      const setupCustomer = String(json.customer || '').trim();
+      if (!setupCustomer || setupCustomer !== String(customerResult.customerId)) {
+        sendJson(res, 400, { error: 'SetupIntent customer does not match current user.' });
+        return;
+      }
+
+      const paymentMethod = (json.payment_method && typeof json.payment_method === 'object') ? json.payment_method : null;
+      if (!paymentMethod?.id) {
+        sendJson(res, 400, { error: 'Payment method not found on SetupIntent.' });
+        return;
+      }
+      const record = upsertPaymentFromStripeMethod({
+        userId: user.id,
+        customerId: customerResult.customerId,
+        setupIntentId,
+        paymentMethod,
+        fallbackMethod: 'card'
+      });
+      sendJson(res, 201, { payment: serializePayment(record) });
+      return;
+    } catch (error) {
+      sendJson(res, 400, { error: `Stripe payment method save failed. ${error.message || 'Unknown error.'}` });
+      return;
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/payments/stripe/checkout-session') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await parseBody(req);
+    const method = String(body.method || '').trim().toLowerCase();
+    if (!['paypal', 'apple_pay'].includes(method)) {
+      sendJson(res, 400, { error: 'Unsupported checkout setup method.' });
+      return;
+    }
+
+    const stripeSecret = await resolveStripeSecretKey();
+    if (!stripeSecret) {
+      sendJson(res, 400, { error: 'Stripe is not configured on server.' });
+      return;
+    }
+
+    const customerResult = await ensureStripeCustomerForUser(user);
+    if (customerResult.error) {
+      sendJson(res, 400, { error: customerResult.error });
+      return;
+    }
+
+    try {
+      const origin = getRequestOrigin(req);
+      const paymentType = mapMethodLabelToStripeType(method);
+      const form = new URLSearchParams();
+      form.set('mode', 'setup');
+      form.set('customer', String(customerResult.customerId));
+      form.set('success_url', `${origin}/?payment_setup=success&session_id={CHECKOUT_SESSION_ID}&method=${encodeURIComponent(method)}`);
+      form.set('cancel_url', `${origin}/?payment_setup=cancel&method=${encodeURIComponent(method)}`);
+      form.set('payment_method_types[]', paymentType);
+      form.set('metadata[user_id]', String(user.id || ''));
+      form.set('metadata[method_hint]', method);
+
+      const response = await fetch(`${STRIPE_BASE_URL}/v1/checkout/sessions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: form.toString()
+      });
+      const json = await response.json();
+      if (!response.ok || !json.url) {
+        const detail = json?.error?.message || json?.error || 'Unable to create Stripe Checkout session.';
+        sendJson(res, 400, { error: detail });
+        return;
+      }
+
+      sendJson(res, 200, { url: String(json.url), sessionId: String(json.id || '') });
+      return;
+    } catch (error) {
+      sendJson(res, 400, { error: `Stripe checkout setup failed. ${error.message || 'Unknown error.'}` });
+      return;
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/payments/stripe/save-from-session') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await parseBody(req);
+    const sessionId = parseStripeSessionIdFromRaw(body.sessionId);
+    const method = String(body.method || '').trim().toLowerCase();
+    if (!sessionId) {
+      sendJson(res, 400, { error: 'sessionId is required.' });
+      return;
+    }
+
+    const stripeSecret = await resolveStripeSecretKey();
+    if (!stripeSecret) {
+      sendJson(res, 400, { error: 'Stripe is not configured on server.' });
+      return;
+    }
+
+    const customerResult = await ensureStripeCustomerForUser(user);
+    if (customerResult.error) {
+      sendJson(res, 400, { error: customerResult.error });
+      return;
+    }
+
+    try {
+      const sessionRes = await fetch(`${STRIPE_BASE_URL}/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+      const sessionJson = await sessionRes.json();
+      if (!sessionRes.ok) {
+        const detail = sessionJson?.error?.message || sessionJson?.error || 'Unable to read Stripe Checkout session.';
+        sendJson(res, 400, { error: detail });
+        return;
+      }
+
+      const setupIntentId = String(sessionJson.setup_intent || '').trim();
+      if (!setupIntentId) {
+        sendJson(res, 400, { error: 'Stripe Checkout session does not contain a setup intent.' });
+        return;
+      }
+      const sessionCustomer = String(sessionJson.customer || '').trim();
+      if (sessionCustomer && sessionCustomer !== String(customerResult.customerId)) {
+        sendJson(res, 400, { error: 'Checkout session customer does not match current user.' });
+        return;
+      }
+
+      const setupRes = await fetch(`${STRIPE_BASE_URL}/v1/setup_intents/${encodeURIComponent(setupIntentId)}?expand[]=payment_method`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+      const setupJson = await setupRes.json();
+      if (!setupRes.ok) {
+        const detail = setupJson?.error?.message || setupJson?.error || 'Unable to retrieve setup intent.';
+        sendJson(res, 400, { error: detail });
+        return;
+      }
+      if (String(setupJson.status || '').toLowerCase() !== 'succeeded') {
+        sendJson(res, 400, { error: `Setup intent is not completed. Current status: ${setupJson.status || 'unknown'}.` });
+        return;
+      }
+      const paymentMethod = setupJson.payment_method && typeof setupJson.payment_method === 'object'
+        ? setupJson.payment_method
+        : null;
+      if (!paymentMethod?.id) {
+        sendJson(res, 400, { error: 'Payment method not available on setup intent.' });
+        return;
+      }
+
+      const record = upsertPaymentFromStripeMethod({
+        userId: user.id,
+        customerId: customerResult.customerId,
+        setupIntentId,
+        paymentMethod,
+        fallbackMethod: method || 'card'
+      });
+      sendJson(res, 200, { payment: serializePayment(record) });
+      return;
+    } catch (error) {
+      sendJson(res, 400, { error: `Stripe checkout completion failed. ${error.message || 'Unknown error.'}` });
+      return;
+    }
+  }
+
   if (req.method === 'POST' && pathname === '/api/payments') {
     const user = requireAuth(req, res);
     if (!user) return;
@@ -3568,87 +4197,15 @@ async function handleApi(req, res, pathname) {
     let record = null;
 
     if (method === 'card') {
-      const cardNumber = String(body.cardNumber || '').replace(/\s+/g, '');
-      const cardholderName = String(body.cardholderName || '').trim();
-      const cvv = String(body.cvv || '').trim();
-      const exp = String(body.exp || '').trim();
-      const country = String(body.country || '').trim();
-      const address = String(body.address || '').trim();
-      const zip = String(body.zip || '').trim();
-
-      if (cardNumber.length < 12 || !cardholderName || !cvv || !exp || !country) {
-        sendJson(res, 400, { error: 'Card number, cardholder name, CVV, EXP and country are required' });
-        return;
-      }
-
-      record = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        method: 'card',
-        brand: cardBrandFromNumber(cardNumber),
-        cardholderName,
-        last4: cardNumber.slice(-4),
-        exp,
-        country,
-        address,
-        zip,
-        primary: !hasPrimary,
-        createdAt: new Date().toISOString()
-      };
-    } else if (method === 'paypal') {
-      const connected = await connectPayPalAccount({
-        email: body.paypalEmail,
-        password: body.paypalPassword
+      sendJson(res, 400, {
+        error: 'Card details must be set up with Stripe tokenization. Use the Stripe setup flow in Personalization.'
       });
-      if (connected.error) {
-        sendJson(res, 400, { error: connected.error });
-        return;
-      }
-      record = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        method: 'paypal',
-        brand: 'PayPal',
-        cardholderName: '',
-        last4: '',
-        exp: '',
-        country: '',
-        address: '',
-        zip: '',
-        paypalEmailMasked: connected.emailMasked,
-        paypalPayerId: connected.providerId,
-        paypalApiMode: connected.apiMode,
-        primary: !hasPrimary,
-        createdAt: new Date().toISOString()
-      };
-      record.providerRedirectUrl = connected.redirectUrl;
-    } else {
-      const linked = await connectApplePayAccount({
-        email: body.applePayEmail,
-        password: body.applePayPassword
+      return;
+    } else if (method === 'paypal' || method === 'apple_pay') {
+      sendJson(res, 400, {
+        error: 'PayPal and Apple Pay must be set up with Stripe Checkout tokenization. Use the Connect flow in Personalization.'
       });
-      if (linked.error) {
-        sendJson(res, 400, { error: linked.error });
-        return;
-      }
-      record = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        method: 'apple_pay',
-        brand: 'Apple Pay',
-        cardholderName: '',
-        last4: '',
-        exp: '',
-        country: '',
-        address: '',
-        zip: '',
-        applePayReference: linked.reference,
-        applePayEmailMasked: linked.emailMasked,
-        applePayMode: linked.mode,
-        primary: !hasPrimary,
-        createdAt: new Date().toISOString()
-      };
-      record.providerRedirectUrl = linked.redirectUrl;
+      return;
     }
 
     payments.push(record);

@@ -15,6 +15,14 @@ const state = {
   adminStats: null,
   pricingConfig: null,
   twoFactorSetup: null,
+  stripe: {
+    ready: false,
+    enabled: false,
+    publishableKey: '',
+    instance: null,
+    elements: null,
+    card: null
+  },
   searchInProgress: false,
   profileSaveInProgress: false,
   paymentMethod: 'card',
@@ -65,12 +73,18 @@ const el = {
   oauthGoogleBtn: document.getElementById('oauthGoogleBtn'),
   oauthAppleBtn: document.getElementById('oauthAppleBtn'),
   oauthMessage: document.getElementById('oauthMessage'),
+  forgotPasswordToggleBtn: document.getElementById('forgotPasswordToggleBtn'),
+  forgotPasswordForm: document.getElementById('forgotPasswordForm'),
+  requestResetCodeBtn: document.getElementById('requestResetCodeBtn'),
   rewardForm: document.getElementById('rewardForm'),
   profileForm: document.getElementById('profileForm'),
   paymentForm: document.getElementById('paymentForm'),
   paymentMethodPicker: document.getElementById('paymentMethodPicker'),
   paymentMethodInput: document.getElementById('paymentMethodInput'),
   cardFields: document.getElementById('cardFields'),
+  stripeCardElement: document.getElementById('stripeCardElement'),
+  stripeCardholderNameInput: document.getElementById('stripeCardholderNameInput'),
+  stripeBillingCountryInput: document.getElementById('stripeBillingCountryInput'),
   paypalFields: document.getElementById('paypalFields'),
   applePayFields: document.getElementById('applePayFields'),
   paymentSubmitBtn: document.getElementById('paymentSubmitBtn'),
@@ -80,10 +94,13 @@ const el = {
   newSearchSessionBtn: document.getElementById('newSearchSessionBtn'),
   voiceBtn: document.getElementById('voiceBtn'),
   loginMessage: document.getElementById('loginMessage'),
+  forgotPasswordMessage: document.getElementById('forgotPasswordMessage'),
   signupMessage: document.getElementById('signupMessage'),
   personalizationMessage: document.getElementById('personalizationMessage'),
   paymentMessage: document.getElementById('paymentMessage'),
   settingsMessage: document.getElementById('settingsMessage'),
+  changePasswordForm: document.getElementById('changePasswordForm'),
+  changePasswordMessage: document.getElementById('changePasswordMessage'),
   searchMessage: document.getElementById('searchMessage'),
   discoverName: document.getElementById('discoverName'),
   discoverGrid: document.getElementById('discoverGrid'),
@@ -160,26 +177,9 @@ function setPaymentMethod(method) {
   setRequiredForSection(el.paypalFields, next === 'paypal');
   setRequiredForSection(el.applePayFields, next === 'apple_pay');
 
-  const paypalEmailInput = el.paypalFields?.querySelector('input[name="paypalEmail"]');
-  const paypalPasswordInput = el.paypalFields?.querySelector('input[name="paypalPassword"]');
-  const appleEmailInput = el.applePayFields?.querySelector('input[name="applePayEmail"]');
-  const applePasswordInput = el.applePayFields?.querySelector('input[name="applePayPassword"]');
-  if (paypalEmailInput) {
-    paypalEmailInput.required = next === 'paypal';
-  }
-  if (paypalPasswordInput) {
-    paypalPasswordInput.required = next === 'paypal';
-  }
-  if (appleEmailInput) {
-    appleEmailInput.required = next === 'apple_pay';
-  }
-  if (applePasswordInput) {
-    applePasswordInput.required = next === 'apple_pay';
-  }
-
   if (el.paymentSubmitBtn) {
     el.paymentSubmitBtn.textContent = next === 'card'
-      ? 'Save payment method'
+      ? 'Save card with Stripe'
       : (next === 'paypal' ? 'Connect PayPal' : 'Connect Apple Pay');
   }
 }
@@ -187,6 +187,99 @@ function setPaymentMethod(method) {
 function showFeedback(node, text, isError = false) {
   node.textContent = text;
   node.classList.toggle('error', isError);
+}
+
+async function ensureStripeCardSetup() {
+  if (state.stripe.ready) return state.stripe.enabled;
+  state.stripe.ready = true;
+
+  if (typeof window.Stripe !== 'function') {
+    state.stripe.enabled = false;
+    return false;
+  }
+
+  try {
+    const cfg = await api('/api/payments/stripe/config');
+    const publishableKey = String(cfg.publishableKey || '').trim();
+    if (!cfg.enabled || !publishableKey) {
+      state.stripe.enabled = false;
+      return false;
+    }
+
+    state.stripe.publishableKey = publishableKey;
+    state.stripe.instance = window.Stripe(publishableKey);
+    state.stripe.elements = state.stripe.instance.elements();
+    state.stripe.card = state.stripe.elements.create('card', {
+      hidePostalCode: false,
+      style: {
+        base: {
+          fontSize: '15px',
+          color: '#f3f7ff'
+        },
+        invalid: {
+          color: '#ffb0a1'
+        }
+      }
+    });
+    if (el.stripeCardElement) {
+      state.stripe.card.mount(el.stripeCardElement);
+    }
+    state.stripe.enabled = true;
+    return true;
+  } catch {
+    state.stripe.enabled = false;
+    return false;
+  }
+}
+
+async function saveStripeCardPaymentMethod() {
+  const stripeEnabled = await ensureStripeCardSetup();
+  if (!stripeEnabled || !state.stripe.instance || !state.stripe.card) {
+    throw new Error('Stripe card setup is unavailable. Configure STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY.');
+  }
+
+  const setup = await api('/api/payments/stripe/setup-intent', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+
+  const cardholderName = String(el.stripeCardholderNameInput?.value || '').trim();
+  const billingCountry = String(el.stripeBillingCountryInput?.value || '').trim().toUpperCase();
+
+  const { setupIntent, error } = await state.stripe.instance.confirmCardSetup(setup.clientSecret, {
+    payment_method: {
+      card: state.stripe.card,
+      billing_details: {
+        ...(cardholderName ? { name: cardholderName } : {}),
+        ...(billingCountry ? { address: { country: billingCountry } } : {})
+      }
+    }
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Stripe card setup failed.');
+  }
+  if (!setupIntent?.id) {
+    throw new Error('Stripe setup failed without a SetupIntent id.');
+  }
+
+  const saved = await api('/api/payments/stripe/save', {
+    method: 'POST',
+    body: JSON.stringify({ setupIntentId: setupIntent.id })
+  });
+  return saved;
+}
+
+async function startStripeCheckoutPaymentSetup(method) {
+  const session = await api('/api/payments/stripe/checkout-session', {
+    method: 'POST',
+    body: JSON.stringify({ method })
+  });
+  const checkoutUrl = String(session.url || '').trim();
+  if (!checkoutUrl) {
+    throw new Error('Stripe Checkout setup URL is missing.');
+  }
+  window.location.href = checkoutUrl;
 }
 
 async function api(path, options = {}) {
@@ -1041,8 +1134,10 @@ function hydrateFormsFromUser() {
 
   const settings = el.settingsForm;
   settings.language.value = state.user.language || 'English';
-  settings.email.value = state.user.email || '';
   settings.phone.value = state.user.phone || '';
+  if (el.changePasswordForm) {
+    el.changePasswordForm.classList.toggle('hidden', !state.user.hasPassword);
+  }
 
   state.selectedPreferences = new Set(Array.isArray(state.user.preferences) ? state.user.preferences : []);
   renderPreferenceChips();
@@ -1337,6 +1432,7 @@ async function handleAuthenticatedBoot() {
 async function boot() {
   setPaymentMethod('card');
   renderPreferenceChips();
+  void ensureStripeCardSetup();
   const params = new URLSearchParams(window.location.search);
   const authError = params.get('auth_error');
   if (authError) {
@@ -1344,6 +1440,32 @@ async function boot() {
     if (el.oauthMessage) {
       showFeedback(el.oauthMessage, authError, true);
     }
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+
+  const paymentSetup = String(params.get('payment_setup') || '').trim().toLowerCase();
+  const paymentSessionId = String(params.get('session_id') || '').trim();
+  const paymentMethodHint = String(params.get('method') || '').trim().toLowerCase();
+  if (paymentSetup === 'success' && paymentSessionId) {
+    try {
+      await api('/api/payments/stripe/save-from-session', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: paymentSessionId,
+          method: paymentMethodHint
+        })
+      });
+      showFeedback(el.paymentMessage, 'Payment method connected with Stripe.');
+      const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+      window.history.replaceState({}, document.title, cleanUrl);
+    } catch (error) {
+      showFeedback(el.paymentMessage, error.message, true);
+      const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  } else if (paymentSetup === 'cancel') {
+    showFeedback(el.paymentMessage, 'Payment setup canceled.');
     const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
     window.history.replaceState({}, document.title, cleanUrl);
   }
@@ -1449,6 +1571,63 @@ if (el.oauthAppleBtn) {
   el.oauthAppleBtn.addEventListener('click', async () => continueWithProvider('apple', el.oauthMessage || el.loginMessage));
 }
 
+if (el.forgotPasswordToggleBtn && el.forgotPasswordForm) {
+  el.forgotPasswordToggleBtn.addEventListener('click', () => {
+    const willShow = el.forgotPasswordForm.classList.contains('hidden');
+    el.forgotPasswordForm.classList.toggle('hidden', !willShow);
+    el.forgotPasswordToggleBtn.textContent = willShow ? 'Hide password reset' : 'Forgot password?';
+    if (!willShow) {
+      showFeedback(el.forgotPasswordMessage, '');
+    }
+  });
+}
+
+if (el.requestResetCodeBtn && el.forgotPasswordForm) {
+  el.requestResetCodeBtn.addEventListener('click', async () => {
+    showFeedback(el.forgotPasswordMessage, '');
+    const email = String(el.forgotPasswordForm.email?.value || '').trim();
+    if (!email) {
+      showFeedback(el.forgotPasswordMessage, 'Email is required.', true);
+      return;
+    }
+    try {
+      const data = await api('/api/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
+      const hint = data.resetCode ? ` Dev reset code: ${data.resetCode}` : '';
+      showFeedback(el.forgotPasswordMessage, `If the email exists, a reset code has been generated.${hint}`);
+    } catch (error) {
+      showFeedback(el.forgotPasswordMessage, error.message, true);
+    }
+  });
+}
+
+if (el.forgotPasswordForm) {
+  el.forgotPasswordForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    showFeedback(el.forgotPasswordMessage, '');
+    if (!el.forgotPasswordForm.reportValidity()) return;
+
+    const payload = Object.fromEntries(new FormData(el.forgotPasswordForm).entries());
+    if (String(payload.newPassword || '') !== String(payload.confirmNewPassword || '')) {
+      showFeedback(el.forgotPasswordMessage, 'New password and confirmation do not match.', true);
+      return;
+    }
+    try {
+      await api('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      el.forgotPasswordForm.reset();
+      showFeedback(el.forgotPasswordMessage, 'Password reset successful. You can log in now.');
+      showFeedback(el.loginMessage, '');
+    } catch (error) {
+      showFeedback(el.forgotPasswordMessage, error.message, true);
+    }
+  });
+}
+
 el.rewardForm.addEventListener('submit', async event => {
   event.preventDefault();
   showFeedback(el.personalizationMessage, '');
@@ -1511,12 +1690,25 @@ el.paymentForm.addEventListener('submit', async event => {
 
   try {
     const payload = Object.fromEntries(new FormData(el.paymentForm).entries());
-    const data = await api('/api/payments', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
+    const method = String(payload.method || state.paymentMethod || 'card').trim().toLowerCase();
+    let data = null;
+
+    if (method === 'card') {
+      data = await saveStripeCardPaymentMethod();
+    } else if (method === 'paypal' || method === 'apple_pay') {
+      await startStripeCheckoutPaymentSetup(method);
+      return;
+    } else {
+      data = await api('/api/payments', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    }
 
     el.paymentForm.reset();
+    if (method === 'card' && state.stripe.card) {
+      state.stripe.card.clear();
+    }
     setPaymentMethod(state.paymentMethod);
     await refreshPayments();
     showFeedback(el.paymentMessage, data.redirectUrl ? 'Payment method added. Redirecting to provider...' : 'Payment method added.');
@@ -1532,6 +1724,7 @@ el.paymentForm.addEventListener('submit', async event => {
 el.settingsForm.addEventListener('submit', async event => {
   event.preventDefault();
   showFeedback(el.settingsMessage, '');
+  if (!el.settingsForm.reportValidity()) return;
 
   try {
     const payload = Object.fromEntries(new FormData(el.settingsForm).entries());
@@ -1547,6 +1740,29 @@ el.settingsForm.addEventListener('submit', async event => {
     showFeedback(el.settingsMessage, error.message, true);
   }
 });
+
+if (el.changePasswordForm) {
+  el.changePasswordForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    showFeedback(el.changePasswordMessage, '');
+    if (!el.changePasswordForm.reportValidity()) return;
+    const payload = Object.fromEntries(new FormData(el.changePasswordForm).entries());
+    if (String(payload.newPassword || '') !== String(payload.confirmNewPassword || '')) {
+      showFeedback(el.changePasswordMessage, 'New password and confirmation do not match.', true);
+      return;
+    }
+    try {
+      await api('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      el.changePasswordForm.reset();
+      showFeedback(el.changePasswordMessage, 'Password updated successfully.');
+    } catch (error) {
+      showFeedback(el.changePasswordMessage, error.message, true);
+    }
+  });
+}
 
 if (el.twoFactorSetupBtn) {
   el.twoFactorSetupBtn.addEventListener('click', async () => {

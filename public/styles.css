@@ -892,6 +892,21 @@ input {
   text-align: center;
 }
 
+.auth-link-btn {
+  margin-top: 8px;
+  background: transparent;
+  border: 0;
+  color: #b8cbff;
+  font-size: 14px;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auth-link-btn:hover {
+  color: #d9e4ff;
+}
+
 .auth-social-actions {
   display: flex;
   justify-content: center;
@@ -949,6 +964,17 @@ input {
   margin-top: 14px;
 }
 
+.required-note {
+  margin: 0;
+  font-size: 12px;
+}
+
+.settings-password-form {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--soft-line);
+}
+
 .two-factor-qr-wrap {
   display: flex;
   justify-content: center;
@@ -961,6 +987,14 @@ input {
   border: 1px solid var(--soft-line);
   background: #ffffff;
   padding: 8px;
+}
+
+.stripe-card-element {
+  border: 1px solid var(--soft-line);
+  border-radius: 12px;
+  background: rgba(10, 18, 36, 0.72);
+  padding: 12px;
+  min-height: 46px;
 }
 
 .admin-kpis {
