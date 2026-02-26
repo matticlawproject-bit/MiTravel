@@ -62,6 +62,9 @@ const el = {
   sideNav: document.getElementById('sideNav'),
   loginForm: document.getElementById('loginForm'),
   signupForm: document.getElementById('signupForm'),
+  oauthGoogleBtn: document.getElementById('oauthGoogleBtn'),
+  oauthAppleBtn: document.getElementById('oauthAppleBtn'),
+  oauthMessage: document.getElementById('oauthMessage'),
   rewardForm: document.getElementById('rewardForm'),
   profileForm: document.getElementById('profileForm'),
   paymentForm: document.getElementById('paymentForm'),
@@ -100,8 +103,6 @@ const el = {
   twoFactorSetupPanel: document.getElementById('twoFactorSetupPanel'),
   twoFactorSecretKey: document.getElementById('twoFactorSecretKey'),
   twoFactorQrImage: document.getElementById('twoFactorQrImage'),
-  twoFactorQrPopupBtn: document.getElementById('twoFactorQrPopupBtn'),
-  twoFactorOtpAuthLink: document.getElementById('twoFactorOtpAuthLink'),
   twoFactorEnableCode: document.getElementById('twoFactorEnableCode'),
   twoFactorEnableBtn: document.getElementById('twoFactorEnableBtn'),
   twoFactorSetupCancelBtn: document.getElementById('twoFactorSetupCancelBtn'),
@@ -1072,11 +1073,6 @@ function renderTwoFactorSection() {
   if (el.twoFactorSecretKey) {
     el.twoFactorSecretKey.textContent = hasSetup ? state.twoFactorSetup.secret : '';
   }
-  if (el.twoFactorOtpAuthLink) {
-    const href = hasSetup ? state.twoFactorSetup.otpauthUrl : '#';
-    el.twoFactorOtpAuthLink.href = href;
-    el.twoFactorOtpAuthLink.classList.toggle('hidden', !hasSetup);
-  }
   if (el.twoFactorQrImage) {
     const qrSrc = hasSetup ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(state.twoFactorSetup.otpauthUrl)}` : '';
     if (qrSrc) {
@@ -1086,30 +1082,6 @@ function renderTwoFactorSection() {
     }
     el.twoFactorQrImage.classList.toggle('hidden', !hasSetup);
   }
-  if (el.twoFactorQrPopupBtn) {
-    el.twoFactorQrPopupBtn.classList.toggle('hidden', !hasSetup);
-  }
-}
-
-function openTwoFactorQrPopup() {
-  if (!state.twoFactorSetup?.otpauthUrl) return;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(state.twoFactorSetup.otpauthUrl)}`;
-  const secret = String(state.twoFactorSetup.secret || '');
-  const popup = window.open('', 'mitravel_2fa_qr', 'width=420,height=560,resizable=yes,scrollbars=yes');
-  if (!popup) {
-    showFeedback(el.twoFactorMessage, 'Popup blocked. Allow popups and try again.', true);
-    return;
-  }
-  popup.document.title = 'MiTravel 2FA Setup';
-  popup.document.body.innerHTML = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 18px; background: #0f1a35; color: #f3f7ff;">
-      <h2 style="margin:0 0 10px;">Google Authenticator Setup</h2>
-      <p style="margin:0 0 12px; color:#b9c4e4;">Scan this QR code in Google Authenticator.</p>
-      <img src="${qrSrc}" alt="Authenticator QR Code" style="width:280px;height:280px;border-radius:12px;border:1px solid #30457d;background:#fff;padding:8px;" />
-      <p style="margin:12px 0 6px; color:#b9c4e4;">Manual key:</p>
-      <code style="display:block;word-break:break-all;background:rgba(255,255,255,0.08);padding:8px;border-radius:8px;color:#7ac7ff;">${secret}</code>
-    </div>
-  `;
 }
 
 async function refreshUser() {
@@ -1365,6 +1337,16 @@ async function handleAuthenticatedBoot() {
 async function boot() {
   setPaymentMethod('card');
   renderPreferenceChips();
+  const params = new URLSearchParams(window.location.search);
+  const authError = params.get('auth_error');
+  if (authError) {
+    showFeedback(el.loginMessage, authError, true);
+    if (el.oauthMessage) {
+      showFeedback(el.oauthMessage, authError, true);
+    }
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
 
   try {
     await handleAuthenticatedBoot();
@@ -1454,6 +1436,18 @@ el.signupForm.addEventListener('submit', async event => {
     showFeedback(el.signupMessage, error.message, true);
   }
 });
+
+async function continueWithProvider(provider, feedbackNode) {
+  showFeedback(feedbackNode, '');
+  window.location.href = provider === 'google' ? '/api/auth/google/start' : '/api/auth/apple/start';
+}
+
+if (el.oauthGoogleBtn) {
+  el.oauthGoogleBtn.addEventListener('click', async () => continueWithProvider('google', el.oauthMessage || el.loginMessage));
+}
+if (el.oauthAppleBtn) {
+  el.oauthAppleBtn.addEventListener('click', async () => continueWithProvider('apple', el.oauthMessage || el.loginMessage));
+}
 
 el.rewardForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -1564,17 +1558,10 @@ if (el.twoFactorSetupBtn) {
         otpauthUrl: data.otpauthUrl || ''
       };
       renderTwoFactorSection();
-      openTwoFactorQrPopup();
       showFeedback(el.twoFactorMessage, 'Authenticator setup generated. Add it to Google Authenticator, then enter the 6-digit code.');
     } catch (error) {
       showFeedback(el.twoFactorMessage, error.message, true);
     }
-  });
-}
-
-if (el.twoFactorQrPopupBtn) {
-  el.twoFactorQrPopupBtn.addEventListener('click', () => {
-    openTwoFactorQrPopup();
   });
 }
 

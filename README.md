@@ -99,6 +99,36 @@ export DUFFEL_BASE_URL="https://api.duffel.com"
 
 If Duffel is not configured or unavailable, the app falls back to seeded local results.
 
+## Production OAuth (Google + Apple)
+
+Social sign-in now uses Authorization Code flow with server-side callback handling.
+
+Set Google OAuth:
+
+```bash
+export GOOGLE_OAUTH_CLIENT_ID="..."
+export GOOGLE_OAUTH_CLIENT_SECRET="..."
+# Optional override (default: http://127.0.0.1:3000/api/auth/google/callback)
+export GOOGLE_OAUTH_REDIRECT_URI="http://127.0.0.1:3000/api/auth/google/callback"
+```
+
+Set Apple OAuth:
+
+```bash
+export APPLE_OAUTH_CLIENT_ID="..."
+export APPLE_OAUTH_TEAM_ID="..."
+export APPLE_OAUTH_KEY_ID="..."
+export APPLE_OAUTH_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+# Optional override (default: http://127.0.0.1:3000/api/auth/apple/callback)
+export APPLE_OAUTH_REDIRECT_URI="http://127.0.0.1:3000/api/auth/apple/callback"
+```
+
+Optional hardening:
+
+```bash
+export OAUTH_STATE_SECRET="long-random-secret"
+```
+
 ## Booking Payment Flow (Stripe -> Duffel)
 
 Booking now follows this sequence:

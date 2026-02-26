@@ -54,10 +54,6 @@
         <article class="panel glass">
           <h2>Sign up</h2>
           <form id="signupForm" class="form-stack">
-            <label class="field outlined">
-              <span>Full name</span>
-              <input name="name" type="text" required />
-            </label>
             <label class="field filled">
               <span>Email</span>
               <input name="email" type="email" required />
@@ -71,6 +67,21 @@
           <p id="signupMessage" class="feedback"></p>
         </article>
       </div>
+
+      <article class="panel glass auth-social-panel">
+        <h3>Continue with</h3>
+        <div class="auth-social-actions">
+          <button id="oauthGoogleBtn" type="button" class="social-btn">
+            <span class="social-icon" aria-hidden="true">G</span>
+            <span>Google</span>
+          </button>
+          <button id="oauthAppleBtn" type="button" class="social-btn">
+            <span class="social-icon" aria-hidden="true"></span>
+            <span>Apple</span>
+          </button>
+        </div>
+        <p id="oauthMessage" class="feedback"></p>
+      </article>
     </section>
 
     <section id="appArea" class="app-area hidden">
@@ -269,10 +280,6 @@
                 <code id="twoFactorSecretKey"></code>
                 <div class="two-factor-qr-wrap">
                   <img id="twoFactorQrImage" alt="Authenticator QR Code" class="two-factor-qr hidden" />
-                </div>
-                <div class="flight-actions">
-                  <button id="twoFactorQrPopupBtn" type="button" class="ghost-btn compact">Open QR popup</button>
-                  <a id="twoFactorOtpAuthLink" href="#" target="_blank" rel="noopener noreferrer">Open Authenticator Link</a>
                 </div>
                 <label class="field outlined">
                   <span>Authenticator code</span>

@@ -12,6 +12,17 @@ const DUFFEL_VERSION = process.env.DUFFEL_VERSION || 'v2';
 const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com';
 const STRIPE_BASE_URL = process.env.STRIPE_BASE_URL || 'https://api.stripe.com';
 const TWO_FACTOR_ISSUER = (process.env.TWO_FACTOR_ISSUER || 'MiTravel').trim() || 'MiTravel';
+const GOOGLE_OAUTH_CLIENT_ID = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+const GOOGLE_OAUTH_CLIENT_SECRET = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+const GOOGLE_OAUTH_REDIRECT_URI = String(process.env.GOOGLE_OAUTH_REDIRECT_URI || '').trim();
+const APPLE_OAUTH_CLIENT_ID = String(process.env.APPLE_OAUTH_CLIENT_ID || '').trim();
+const APPLE_OAUTH_TEAM_ID = String(process.env.APPLE_OAUTH_TEAM_ID || '').trim();
+const APPLE_OAUTH_KEY_ID = String(process.env.APPLE_OAUTH_KEY_ID || '').trim();
+const APPLE_OAUTH_PRIVATE_KEY = String(process.env.APPLE_OAUTH_PRIVATE_KEY || '').trim();
+const APPLE_OAUTH_REDIRECT_URI = String(process.env.APPLE_OAUTH_REDIRECT_URI || '').trim();
+const OAUTH_STATE_COOKIE = 'mitravel_oauth_state';
+const OAUTH_STATE_TTL_SECONDS = 10 * 60;
+const OAUTH_STATE_SECRET = String(process.env.OAUTH_STATE_SECRET || process.env.MI_TRAVEL_MASTER_KEY || 'mi-travel-oauth-state').trim();
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
@@ -270,6 +281,27 @@ function parseBody(req) {
   });
 }
 
+function parseUrlEncodedBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => {
+      data += chunk;
+      if (data.length > 1_000_000) {
+        reject(new Error('Payload too large'));
+      }
+    });
+    req.on('end', () => {
+      const params = new URLSearchParams(data);
+      const out = {};
+      for (const [key, value] of params.entries()) {
+        out[key] = value;
+      }
+      resolve(out);
+    });
+    req.on('error', reject);
+  });
+}
+
 function parseCookies(req) {
   const raw = req.headers.cookie || '';
   return raw.split(';').reduce((acc, part) => {
@@ -290,14 +322,222 @@ function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
 }
 
+function appendSetCookie(res, value) {
+  const existing = res.getHeader('Set-Cookie');
+  if (!existing) {
+    res.setHeader('Set-Cookie', value);
+    return;
+  }
+  if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', [...existing, value]);
+    return;
+  }
+  res.setHeader('Set-Cookie', [existing, value]);
+}
+
+function b64urlEncode(input) {
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(String(input), 'utf8');
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function b64urlDecode(str) {
+  const normalized = String(str || '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = normalized.length % 4 ? '='.repeat(4 - (normalized.length % 4)) : '';
+  return Buffer.from(normalized + pad, 'base64');
+}
+
+function createRandomId(bytes = 24) {
+  return b64urlEncode(crypto.randomBytes(bytes));
+}
+
+function sha256Base64Url(value) {
+  return b64urlEncode(crypto.createHash('sha256').update(String(value)).digest());
+}
+
+function signStatePayload(payload) {
+  const encoded = b64urlEncode(JSON.stringify(payload));
+  const signature = b64urlEncode(crypto.createHmac('sha256', OAUTH_STATE_SECRET).update(encoded).digest());
+  return `${encoded}.${signature}`;
+}
+
+function verifyStatePayload(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 2) return null;
+  const [encoded, signature] = parts;
+  const expected = b64urlEncode(crypto.createHmac('sha256', OAUTH_STATE_SECRET).update(encoded).digest());
+  const left = Buffer.from(signature);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
+  try {
+    const payload = JSON.parse(b64urlDecode(encoded).toString('utf8'));
+    return payload && typeof payload === 'object' ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+function getRequestOrigin(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const proto = forwardedProto || 'http';
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || `${HOST}:${PORT}`).split(',')[0].trim();
+  return `${proto}://${host}`;
+}
+
+function setOAuthStateCookie(res, provider, state, nonce, codeVerifier) {
+  const payload = {
+    provider,
+    state,
+    nonce,
+    codeVerifier,
+    exp: Math.floor(Date.now() / 1000) + OAUTH_STATE_TTL_SECONDS
+  };
+  appendSetCookie(res, `${OAUTH_STATE_COOKIE}=${encodeURIComponent(signStatePayload(payload))}; HttpOnly; Path=/; Max-Age=${OAUTH_STATE_TTL_SECONDS}; SameSite=Lax`);
+}
+
+function clearOAuthStateCookie(res) {
+  appendSetCookie(res, `${OAUTH_STATE_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+}
+
+function consumeOAuthState(req, res, expectedProvider, expectedState) {
+  const cookies = parseCookies(req);
+  const token = cookies[OAUTH_STATE_COOKIE];
+  if (!token) return null;
+  const payload = verifyStatePayload(token);
+  if (!payload) return null;
+  if (String(payload.provider || '') !== String(expectedProvider || '')) return null;
+  if (String(payload.state || '') !== String(expectedState || '')) return null;
+  if (Number(payload.exp || 0) < Math.floor(Date.now() / 1000)) return null;
+  return payload;
+}
+
+async function fetchOpenIdConfig(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`OIDC discovery failed (${response.status})`);
+  }
+  return response.json();
+}
+
+const jwksCache = new Map();
+async function fetchJwks(jwksUri) {
+  const now = Date.now();
+  const existing = jwksCache.get(jwksUri);
+  if (existing && existing.expiresAt > now) {
+    return existing.keys;
+  }
+  const response = await fetch(jwksUri);
+  if (!response.ok) {
+    throw new Error(`JWKS fetch failed (${response.status})`);
+  }
+  const json = await response.json();
+  const keys = Array.isArray(json.keys) ? json.keys : [];
+  jwksCache.set(jwksUri, { keys, expiresAt: now + 60 * 60 * 1000 });
+  return keys;
+}
+
+function decodeJwt(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) throw new Error('Invalid JWT format.');
+  const [headerB64, payloadB64, sigB64] = parts;
+  const header = JSON.parse(b64urlDecode(headerB64).toString('utf8'));
+  const payload = JSON.parse(b64urlDecode(payloadB64).toString('utf8'));
+  return {
+    raw: `${headerB64}.${payloadB64}`,
+    signature: b64urlDecode(sigB64),
+    header,
+    payload
+  };
+}
+
+function isAudienceValid(tokenAud, expectedAud) {
+  if (Array.isArray(tokenAud)) return tokenAud.includes(expectedAud);
+  return String(tokenAud || '') === String(expectedAud || '');
+}
+
+async function verifyIdToken({ token, issuer, audience, nonce, jwksUri }) {
+  const decoded = decodeJwt(token);
+  if (String(decoded.header.alg || '') !== 'RS256') {
+    throw new Error('Unsupported id_token algorithm.');
+  }
+  const kid = String(decoded.header.kid || '');
+  const keys = await fetchJwks(jwksUri);
+  const jwk = keys.find(k => String(k.kid || '') === kid);
+  if (!jwk) {
+    throw new Error('Matching JWKS key not found.');
+  }
+
+  const key = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const ok = crypto.verify('RSA-SHA256', Buffer.from(decoded.raw), key, decoded.signature);
+  if (!ok) {
+    throw new Error('Invalid id_token signature.');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (Number(decoded.payload.exp || 0) <= now) {
+    throw new Error('id_token is expired.');
+  }
+  const iss = String(decoded.payload.iss || '');
+  const issuers = Array.isArray(issuer) ? issuer : [issuer];
+  if (!issuers.includes(iss)) {
+    throw new Error('Invalid id_token issuer.');
+  }
+  if (!isAudienceValid(decoded.payload.aud, audience)) {
+    throw new Error('Invalid id_token audience.');
+  }
+  if (nonce && String(decoded.payload.nonce || '') !== String(nonce)) {
+    throw new Error('Invalid id_token nonce.');
+  }
+  return decoded.payload;
+}
+
+function createAppleClientSecret() {
+  if (!APPLE_OAUTH_CLIENT_ID || !APPLE_OAUTH_TEAM_ID || !APPLE_OAUTH_KEY_ID || !APPLE_OAUTH_PRIVATE_KEY) {
+    throw new Error('Apple OAuth is not configured.');
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'ES256', kid: APPLE_OAUTH_KEY_ID, typ: 'JWT' };
+  const payload = {
+    iss: APPLE_OAUTH_TEAM_ID,
+    iat: now,
+    exp: now + 15777000,
+    aud: 'https://appleid.apple.com',
+    sub: APPLE_OAUTH_CLIENT_ID
+  };
+  const encodedHeader = b64urlEncode(JSON.stringify(header));
+  const encodedPayload = b64urlEncode(JSON.stringify(payload));
+  const toSign = `${encodedHeader}.${encodedPayload}`;
+  const privateKeyPem = APPLE_OAUTH_PRIVATE_KEY.replace(/\\n/g, '\n');
+  const signature = crypto.sign('SHA256', Buffer.from(toSign), {
+    key: privateKeyPem,
+    dsaEncoding: 'ieee-p1363'
+  });
+  return `${toSign}.${b64urlEncode(signature)}`;
+}
+
+function redirectToAuthHome(res, errorMessage = '') {
+  const target = errorMessage
+    ? `/?auth_error=${encodeURIComponent(errorMessage)}`
+    : '/';
+  res.writeHead(302, { Location: target });
+  res.end();
+}
+
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
   return { salt, hash };
 }
 
 function verifyPassword(password, salt, hash) {
-  const computed = hashPassword(password, salt).hash;
-  return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(hash, 'hex'));
+  try {
+    if (!salt || !hash) return false;
+    const computed = hashPassword(password, salt).hash;
+    const left = Buffer.from(computed, 'hex');
+    const right = Buffer.from(hash, 'hex');
+    if (!left.length || left.length !== right.length) return false;
+    return crypto.timingSafeEqual(left, right);
+  } catch {
+    return false;
+  }
 }
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -506,6 +746,61 @@ function ensureAdminUser() {
       createdAt: new Date().toISOString()
     });
   writeJson(FILES.users, users);
+}
+
+function upsertOAuthUser({ provider, email, name }) {
+  const providerKey = String(provider || '').trim().toLowerCase();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!providerKey || !normalizedEmail) {
+    throw new Error('provider and email are required');
+  }
+
+  const users = readJson(FILES.users);
+  let user = users.find(u => String(u.email || '').toLowerCase() === normalizedEmail);
+  if (!user) {
+    const fallbackName = String(normalizedEmail.split('@')[0] || 'Traveler').replace(/[._-]+/g, ' ').trim() || 'Traveler';
+    const displayName = String(name || fallbackName).trim() || 'Traveler';
+    const [firstName = '', ...rest] = displayName.split(' ');
+    const lastName = rest.join(' ');
+    user = {
+      id: crypto.randomUUID(),
+      name: displayName,
+      email: normalizedEmail,
+      passwordSalt: '',
+      passwordHash: '',
+      role: 'user',
+      firstName,
+      middleName: '',
+      lastName,
+      homeAirport: '',
+      address: '',
+      passportNumber: '',
+      passportExpiry: '',
+      passportCountry: '',
+      title: '',
+      gender: '',
+      bornOn: '',
+      phone: '',
+      language: 'English',
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+      twoFactorTempSecret: null,
+      preferences: [],
+      authProvider: providerKey,
+      createdAt: new Date().toISOString()
+    };
+    users.push(user);
+    writeJson(FILES.users, users);
+    return user;
+  }
+
+  const idx = users.findIndex(u => u.id === user.id);
+  if (idx >= 0 && !users[idx].authProvider) {
+    users[idx].authProvider = providerKey;
+    writeJson(FILES.users, users);
+    user = users[idx];
+  }
+  return user;
 }
 
 function getAdminConfig() {
@@ -2640,12 +2935,11 @@ function serveStatic(req, res, pathname) {
 async function handleApi(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/auth/register') {
     const body = await parseBody(req);
-    const name = (body.name || '').trim();
     const email = (body.email || '').trim().toLowerCase();
     const password = body.password || '';
 
-    if (!name || !email || password.length < 8) {
-      sendJson(res, 400, { error: 'Name, email and password (8+ chars) are required' });
+    if (!email || password.length < 8) {
+      sendJson(res, 400, { error: 'Email and password (8+ chars) are required' });
       return;
     }
 
@@ -2655,6 +2949,8 @@ async function handleApi(req, res, pathname) {
       return;
     }
 
+    const fallbackName = String(email.split('@')[0] || 'Traveler').replace(/[._-]+/g, ' ').trim() || 'Traveler';
+    const name = (body.name || fallbackName).trim();
     const [firstName = '', ...rest] = name.split(' ');
     const lastName = rest.join(' ');
     const { salt, hash } = hashPassword(password);
@@ -2694,6 +2990,233 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/api/auth/google/start') {
+    if (!GOOGLE_OAUTH_CLIENT_ID || !GOOGLE_OAUTH_CLIENT_SECRET) {
+      sendJson(res, 500, { error: 'Google OAuth is not configured on server.' });
+      return;
+    }
+    const origin = getRequestOrigin(req);
+    const redirectUri = GOOGLE_OAUTH_REDIRECT_URI || `${origin}/api/auth/google/callback`;
+    const state = createRandomId(18);
+    const nonce = createRandomId(18);
+    const codeVerifier = createRandomId(48);
+    const codeChallenge = sha256Base64Url(codeVerifier);
+    setOAuthStateCookie(res, 'google', state, nonce, codeVerifier);
+
+    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    authUrl.searchParams.set('client_id', GOOGLE_OAUTH_CLIENT_ID);
+    authUrl.searchParams.set('redirect_uri', redirectUri);
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('scope', 'openid email profile');
+    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('nonce', nonce);
+    authUrl.searchParams.set('code_challenge', codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+    authUrl.searchParams.set('prompt', 'select_account');
+
+    res.writeHead(302, { Location: authUrl.toString() });
+    res.end();
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/auth/google/callback') {
+    const url = new URL(req.url, getRequestOrigin(req));
+    const oauthError = String(url.searchParams.get('error') || '').trim();
+    if (oauthError) {
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res, `Google sign-in failed: ${oauthError}`);
+      return;
+    }
+
+    const code = String(url.searchParams.get('code') || '').trim();
+    const state = String(url.searchParams.get('state') || '').trim();
+    const stored = consumeOAuthState(req, res, 'google', state);
+    if (!code || !stored) {
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res, 'Google sign-in state is invalid or expired.');
+      return;
+    }
+
+    try {
+      const origin = getRequestOrigin(req);
+      const redirectUri = GOOGLE_OAUTH_REDIRECT_URI || `${origin}/api/auth/google/callback`;
+      const tokenPayload = new URLSearchParams();
+      tokenPayload.set('client_id', GOOGLE_OAUTH_CLIENT_ID);
+      tokenPayload.set('client_secret', GOOGLE_OAUTH_CLIENT_SECRET);
+      tokenPayload.set('code', code);
+      tokenPayload.set('grant_type', 'authorization_code');
+      tokenPayload.set('redirect_uri', redirectUri);
+      tokenPayload.set('code_verifier', stored.codeVerifier);
+
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenPayload.toString()
+      });
+      const tokenJson = await tokenRes.json();
+      if (!tokenRes.ok || !tokenJson.id_token) {
+        throw new Error(tokenJson.error_description || tokenJson.error || 'Google token exchange failed.');
+      }
+
+      const config = await fetchOpenIdConfig('https://accounts.google.com/.well-known/openid-configuration');
+      const claims = await verifyIdToken({
+        token: tokenJson.id_token,
+        issuer: ['https://accounts.google.com', 'accounts.google.com'],
+        audience: GOOGLE_OAUTH_CLIENT_ID,
+        nonce: stored.nonce,
+        jwksUri: config.jwks_uri
+      });
+      const email = String(claims.email || '').trim().toLowerCase();
+      if (!email || claims.email_verified === false) {
+        throw new Error('Google account email is missing or not verified.');
+      }
+
+      const user = upsertOAuthUser({
+        provider: 'google',
+        email,
+        name: String(claims.name || '')
+      });
+      const token = createSession(user.id);
+      setSessionCookie(res, token);
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res);
+      return;
+    } catch (error) {
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res, error.message || 'Google sign-in failed.');
+      return;
+    }
+  }
+
+  if (req.method === 'GET' && pathname === '/api/auth/apple/start') {
+    if (!APPLE_OAUTH_CLIENT_ID || !APPLE_OAUTH_TEAM_ID || !APPLE_OAUTH_KEY_ID || !APPLE_OAUTH_PRIVATE_KEY) {
+      sendJson(res, 500, { error: 'Apple OAuth is not configured on server.' });
+      return;
+    }
+    const origin = getRequestOrigin(req);
+    const redirectUri = APPLE_OAUTH_REDIRECT_URI || `${origin}/api/auth/apple/callback`;
+    const state = createRandomId(18);
+    const nonce = createRandomId(18);
+    const codeVerifier = createRandomId(48);
+    setOAuthStateCookie(res, 'apple', state, nonce, codeVerifier);
+
+    const authUrl = new URL('https://appleid.apple.com/auth/authorize');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('response_mode', 'form_post');
+    authUrl.searchParams.set('client_id', APPLE_OAUTH_CLIENT_ID);
+    authUrl.searchParams.set('redirect_uri', redirectUri);
+    authUrl.searchParams.set('scope', 'name email');
+    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('nonce', nonce);
+
+    res.writeHead(302, { Location: authUrl.toString() });
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/auth/apple/callback') {
+    const form = await parseUrlEncodedBody(req);
+    const oauthError = String(form.error || '').trim();
+    if (oauthError) {
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res, `Apple sign-in failed: ${oauthError}`);
+      return;
+    }
+
+    const code = String(form.code || '').trim();
+    const state = String(form.state || '').trim();
+    const stored = consumeOAuthState(req, res, 'apple', state);
+    if (!code || !stored) {
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res, 'Apple sign-in state is invalid or expired.');
+      return;
+    }
+
+    try {
+      const origin = getRequestOrigin(req);
+      const redirectUri = APPLE_OAUTH_REDIRECT_URI || `${origin}/api/auth/apple/callback`;
+      const clientSecret = createAppleClientSecret();
+      const payload = new URLSearchParams();
+      payload.set('client_id', APPLE_OAUTH_CLIENT_ID);
+      payload.set('client_secret', clientSecret);
+      payload.set('code', code);
+      payload.set('grant_type', 'authorization_code');
+      payload.set('redirect_uri', redirectUri);
+
+      const tokenRes = await fetch('https://appleid.apple.com/auth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload.toString()
+      });
+      const tokenJson = await tokenRes.json();
+      if (!tokenRes.ok || !tokenJson.id_token) {
+        throw new Error(tokenJson.error || 'Apple token exchange failed.');
+      }
+
+      const config = await fetchOpenIdConfig('https://appleid.apple.com/.well-known/openid-configuration');
+      const claims = await verifyIdToken({
+        token: tokenJson.id_token,
+        issuer: 'https://appleid.apple.com',
+        audience: APPLE_OAUTH_CLIENT_ID,
+        nonce: stored.nonce,
+        jwksUri: config.jwks_uri
+      });
+
+      let email = String(claims.email || '').trim().toLowerCase();
+      let name = '';
+      if (form.user) {
+        try {
+          const userInfo = JSON.parse(form.user);
+          const first = String(userInfo?.name?.firstName || '').trim();
+          const last = String(userInfo?.name?.lastName || '').trim();
+          name = `${first} ${last}`.trim();
+          email = email || String(userInfo?.email || '').trim().toLowerCase();
+        } catch {
+          // ignore malformed user field
+        }
+      }
+      if (!email) {
+        email = `apple_${String(claims.sub || createRandomId(8))}@appleid.local`;
+      }
+
+      const user = upsertOAuthUser({
+        provider: 'apple',
+        email,
+        name
+      });
+      const token = createSession(user.id);
+      setSessionCookie(res, token);
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res);
+      return;
+    } catch (error) {
+      clearOAuthStateCookie(res);
+      redirectToAuthHome(res, error.message || 'Apple sign-in failed.');
+      return;
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/auth/oauth') {
+    const body = await parseBody(req);
+    const provider = String(body.provider || '').trim().toLowerCase();
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!['google', 'apple'].includes(provider)) {
+      sendJson(res, 400, { error: 'Unsupported provider. Use google or apple.' });
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      sendJson(res, 400, { error: 'A valid email is required for social sign-in.' });
+      return;
+    }
+
+    const user = upsertOAuthUser({ provider, email, name: body.name });
+
+    const token = createSession(user.id);
+    setSessionCookie(res, token);
+    sendJson(res, 200, { user: publicUser(user) });
+    return;
+  }
+
   if (req.method === 'POST' && pathname === '/api/auth/login') {
     const body = await parseBody(req);
     const email = (body.email || '').trim().toLowerCase();
@@ -2703,7 +3226,15 @@ async function handleApi(req, res, pathname) {
     const users = readJson(FILES.users);
     const user = users.find(u => u.email === email);
 
-    if (!user || !verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+    if (!user) {
+      sendJson(res, 401, { error: 'Invalid email or password' });
+      return;
+    }
+    if (!user.passwordSalt || !user.passwordHash) {
+      sendJson(res, 401, { error: 'This account uses social sign-in. Use Google or Apple.' });
+      return;
+    }
+    if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
       sendJson(res, 401, { error: 'Invalid email or password' });
       return;
     }
